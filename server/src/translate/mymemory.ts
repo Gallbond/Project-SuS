@@ -60,7 +60,7 @@ export async function translateWithMyMemory(word: string, lang: string, target: 
  * Машинный сервис иногда отдаёт мусор вроде «КНИГАЕГОИ» — лучше показать
  * честную ошибку и предложить ввести перевод руками, чем этот мусор.
  */
-function looksLikeTranslation(text: string, source: string): boolean {
+export function looksLikeTranslation(text: string, source: string): boolean {
   if (!text) return false;
   if (!/[а-яё]/i.test(text)) return false;
   if (text.toLowerCase() === source.toLowerCase()) return false;

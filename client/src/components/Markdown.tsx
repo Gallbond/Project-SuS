@@ -1,43 +1,99 @@
-import { useEffect, useMemo, useRef, type MouseEvent } from 'react';
-import MarkdownIt from 'markdown-it';
-
-const md = new MarkdownIt({
-  html: false,
-  linkify: false,
-  breaks: false,
-});
+import { memo, useEffect, useMemo, useRef, type MouseEvent } from 'react';
+import { clearHighlight, setHighlight, supportsHighlights } from '../lib/highlights';
 
 export interface WordHit {
   word: string;
-  element: HTMLElement;
+  range: Range;
 }
 
 interface MarkdownProps {
-  text: string;
+  /** Готовый HTML одной страницы (см. lib/markdown.ts). */
+  html: string;
   lang: string;
+  /** Слова из личного словаря — подсвечиваем их в тексте. */
+  savedWords: ReadonlySet<string>;
   onWordClick: (hit: WordHit) => void;
 }
 
 /**
- * Рендерит markdown и превращает слова в кликабельные <span>.
- * Работаем с готовым DOM, а не с токенами: так поддерживается весь markdown
- * без ручного обхода, а html: false исключает XSS.
+ * Рендерит markdown и позволяет кликать по словам без обёрток в DOM.
+ *
+ * Раньше каждое слово превращалось в <span>: на большом тексте это десятки
+ * тысяч элементов, и любая смена темы пересчитывала стили у всех — отсюда
+ * тормоза. Теперь слово определяется по координатам клика, а подсветка
+ * (наведение, активное слово, словарь) идёт через CSS Custom Highlight API,
+ * который не меняет DOM.
  */
-export function Markdown({ text, lang, onWordClick }: MarkdownProps) {
-  const html = useMemo(() => md.render(text), [text]);
+export const Markdown = memo(function Markdown({
+  html,
+  lang,
+  savedWords,
+  onWordClick,
+}: MarkdownProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef('');
+  const hoverRef = useRef<{ node: Node; offset: number } | null>(null);
+  const frameRef = useRef(0);
+
+  const segmenter = useMemo(() => new Intl.Segmenter(lang || 'pl', { granularity: 'word' }), [lang]);
+
+  // Подсветка слов, сохранённых в словарь.
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !supportsHighlights()) return;
+    setHighlight('sus-saved', collectWordRanges(root, savedWords));
+    return () => clearHighlight('sus-saved');
+  }, [html, savedWords]);
 
   useEffect(() => {
-    if (containerRef.current) wrapWords(containerRef.current, lang);
-  }, [html, lang]);
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      clearHighlight('sus-hover');
+    };
+  }, []);
 
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
-    // Если пользователь выделял текст — не мешаем выделению.
+    // Если пользователь выделял текст — не мешаем.
     if (selectionRef.current) return;
-    const target = (event.target as HTMLElement).closest<HTMLElement>('span.w');
-    const word = target?.dataset.w;
-    if (target && word) onWordClick({ word, element: target });
+    const root = containerRef.current;
+    if (!root) return;
+
+    const found = wordAtPoint(event.clientX, event.clientY, root, segmenter);
+    if (!found) return;
+    onWordClick(found);
+  };
+
+  const handleMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+    if (!supportsHighlights() || frameRef.current) return;
+
+    const { clientX, clientY } = event;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0;
+      const root = containerRef.current;
+      if (!root) return;
+
+      const found = wordAtPoint(clientX, clientY, root, segmenter);
+      if (!found) {
+        if (hoverRef.current) {
+          hoverRef.current = null;
+          clearHighlight('sus-hover');
+        }
+        return;
+      }
+
+      const same =
+        hoverRef.current?.node === found.range.startContainer &&
+        hoverRef.current?.offset === found.range.startOffset;
+      if (same) return;
+
+      hoverRef.current = { node: found.range.startContainer, offset: found.range.startOffset };
+      setHighlight('sus-hover', [found.range]);
+    });
+  };
+
+  const handleMouseLeave = () => {
+    hoverRef.current = null;
+    clearHighlight('sus-hover');
   };
 
   return (
@@ -47,72 +103,108 @@ export function Markdown({ text, lang, onWordClick }: MarkdownProps) {
       onMouseDown={() => {
         selectionRef.current = window.getSelection()?.toString() ?? '';
       }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
+});
+
+interface FoundWord {
+  word: string;
+  range: Range;
 }
 
-function wrapWords(root: HTMLElement, lang: string): void {
-  const segmenter = createSegmenter(lang);
+function caretAtPoint(x: number, y: number): { node: Node; offset: number } | null {
+  const doc = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+
+  if (typeof doc.caretRangeFromPoint === 'function') {
+    const range = doc.caretRangeFromPoint(x, y);
+    if (range) return { node: range.startContainer, offset: range.startOffset };
+  }
+  if (typeof doc.caretPositionFromPoint === 'function') {
+    const position = doc.caretPositionFromPoint(x, y);
+    if (position) return { node: position.offsetNode, offset: position.offset };
+  }
+  return null;
+}
+
+function wordAtPoint(
+  x: number,
+  y: number,
+  root: HTMLElement,
+  segmenter: Intl.Segmenter,
+): FoundWord | null {
+  const caret = caretAtPoint(x, y);
+  if (!caret) return null;
+
+  const { node, offset } = caret;
+  if (node.nodeType !== Node.TEXT_NODE || !root.contains(node)) return null;
+
+  const parent = (node as Text).parentElement;
+  if (!parent || parent.closest('a, code, pre')) return null;
+
+  const text = node.nodeValue ?? '';
+  if (!text) return null;
+
+  let bounds: { start: number; end: number } | null = null;
+  for (const part of segmenter.segment(text)) {
+    if (!part.isWordLike) continue;
+    const start = part.index;
+    const end = start + part.segment.length;
+    if (offset >= start && offset < end) {
+      bounds = { start, end };
+      break;
+    }
+    // Клик ровно на границе слова — запоминаем, но следующее слово важнее.
+    if (offset === end) bounds = { start, end };
+  }
+  if (!bounds) return null;
+
+  const range = document.createRange();
+  range.setStart(node, bounds.start);
+  range.setEnd(node, bounds.end);
+  return { word: text.slice(bounds.start, bounds.end), range };
+}
+
+/** Диапазоны всех вхождений сохранённых слов — одним регулярным проходом. */
+function collectWordRanges(root: HTMLElement, words: ReadonlySet<string>): Range[] {
+  if (words.size === 0) return [];
+
+  const pattern = new RegExp(
+    `(?<![\\p{L}\\p{M}])(?:${[...words].map(escapeRegExp).join('|')})(?![\\p{L}\\p{M}])`,
+    'giu',
+  );
+
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
       const parent = node.parentElement;
-      if (!parent) return NodeFilter.FILTER_REJECT;
-      if (parent.closest('a, code, pre, span.w')) return NodeFilter.FILTER_REJECT;
+      if (!parent || parent.closest('a, code, pre')) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
 
-  const nodes: Text[] = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
-
-  for (const node of nodes) {
-    const fragment = document.createDocumentFragment();
-    for (const segment of segmenter(node.nodeValue ?? '')) {
-      if (segment.word) {
-        const span = document.createElement('span');
-        span.className = 'w';
-        span.dataset.w = segment.text;
-        span.textContent = segment.text;
-        fragment.appendChild(span);
-      } else {
-        fragment.appendChild(document.createTextNode(segment.text));
-      }
-    }
-    node.replaceWith(fragment);
-  }
-}
-
-interface Segment {
-  text: string;
-  word: boolean;
-}
-
-function createSegmenter(lang: string): (value: string) => Segment[] {
-  const locale = lang || 'pl';
-  if ('Segmenter' in Intl) {
-    const segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
-    return (value) =>
-      Array.from(segmenter.segment(value), (part) => ({
-        text: part.segment,
-        word: Boolean(part.isWordLike),
-      }));
-  }
-
-  // Запасной путь для старых браузеров.
-  const words = /[\p{L}\p{M}]+(?:['’‑-][\p{L}\p{M}]+)*/gu;
-  return (value) => {
-    const result: Segment[] = [];
-    let lastIndex = 0;
-    for (const match of value.matchAll(words)) {
+  const ranges: Range[] = [];
+  let node = walker.nextNode();
+  while (node) {
+    const value = node.nodeValue ?? '';
+    for (const match of value.matchAll(pattern)) {
       const index = match.index ?? 0;
-      if (index > lastIndex) result.push({ text: value.slice(lastIndex, index), word: false });
-      result.push({ text: match[0], word: true });
-      lastIndex = index + match[0].length;
+      const range = document.createRange();
+      range.setStart(node, index);
+      range.setEnd(node, index + match[0].length);
+      ranges.push(range);
     }
-    if (lastIndex < value.length) result.push({ text: value.slice(lastIndex), word: false });
-    return result;
-  };
+    node = walker.nextNode();
+  }
+  return ranges;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

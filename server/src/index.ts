@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { ApiError } from './errors';
+import { backupData } from './backup';
 import { CLIENT_DIST } from './paths';
 import { lookupRouter } from './routes/lookup';
 import { dictionaryRouter } from './routes/dictionary';
+import { readingRouter } from './routes/reading';
 import { textsRouter } from './routes/texts';
 import { ensureTextsDir } from './storage';
 
@@ -20,6 +22,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/texts', textsRouter);
 app.use('/api/lookup', lookupRouter);
 app.use('/api/dictionary', dictionaryRouter);
+app.use('/api/reading', readingRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Такого метода нет', code: 'NOT_FOUND' });
@@ -44,6 +47,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 await ensureTextsDir();
+backupData();
 app.listen(port, () => {
   console.log(`Project Sus API: http://localhost:${port}`);
 });

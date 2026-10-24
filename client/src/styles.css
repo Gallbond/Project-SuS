@@ -8,7 +8,6 @@
 html[data-theme='dark'] {
   color-scheme: dark;
   --bg: #0e1116;
-  --bg-glow: radial-gradient(1200px 600px at 15% -10%, rgba(229, 177, 104, 0.1), transparent 60%);
   --surface: #161b23;
   --surface-2: #1c232d;
   --surface-3: #232c38;
@@ -25,12 +24,12 @@ html[data-theme='dark'] {
   --word-hover: rgba(229, 177, 104, 0.13);
   --word-active: rgba(229, 177, 104, 0.26);
   --selection: rgba(229, 177, 104, 0.28);
+  --zone-hover: rgba(255, 255, 255, 0.05);
 }
 
 html[data-theme='light'] {
   color-scheme: light;
   --bg: #faf7f1;
-  --bg-glow: radial-gradient(1200px 600px at 15% -10%, rgba(176, 116, 31, 0.09), transparent 60%);
   --surface: #ffffff;
   --surface-2: #f5f1e8;
   --surface-3: #ece6d9;
@@ -47,6 +46,7 @@ html[data-theme='light'] {
   --word-hover: rgba(169, 106, 21, 0.12);
   --word-active: rgba(169, 106, 21, 0.22);
   --selection: rgba(169, 106, 21, 0.22);
+  --zone-hover: rgba(0, 0, 0, 0.045);
 }
 
 * {
@@ -61,8 +61,7 @@ body {
 body {
   margin: 0;
   font-family: var(--font-ui);
-  background: var(--bg-glow), var(--bg);
-  background-attachment: fixed;
+  background: var(--bg);
   color: var(--text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -246,7 +245,13 @@ code {
 .topbar__tools {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+/* У «Словаря» убираем боковые отступы, чтобы иконка темы стояла ровно между полем поиска и текстом */
+.topbar__tools .btn--ghost {
+  padding-right: 6px;
+  padding-left: 6px;
 }
 
 .search {
@@ -329,17 +334,104 @@ code {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
   gap: 16px;
 }
 
 .card {
   position: relative;
   z-index: 1;
+  display: flex;
+  gap: 14px;
+  min-height: 190px;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   transition: var(--transition);
+}
+
+.card__cover-wrap {
+  position: relative;
+  flex: none;
+}
+
+.card__cover {
+  display: grid;
+  place-items: center;
+  flex: none;
+  align-self: stretch;
+  width: 120px;
+  min-height: 158px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 34px;
+  cursor: zoom-in;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.card__cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* «Подлетает» при наведении */
+.card__cover:hover:not(:disabled) {
+  z-index: 3;
+  border-color: var(--border-strong);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4);
+  transform: translateY(-3px) scale(1.03);
+}
+
+.card__cover:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card__cover--empty {
+  border-style: dashed;
+  background: var(--accent-soft);
+  cursor: default;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  cursor: zoom-out;
+  animation: lightbox-in 140ms ease-out;
+}
+
+.lightbox img {
+  width: auto;
+  min-width: min(50vw, 420px);
+  max-width: min(90vw, 760px);
+  max-height: 84vh;
+  border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .card:hover {
@@ -355,8 +447,9 @@ code {
 
 .card__main {
   display: block;
-  width: 100%;
-  padding: 18px 18px 16px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
   border: 0;
   border-radius: var(--radius);
   background: none;
@@ -407,6 +500,21 @@ code {
   position: absolute;
   top: 10px;
   right: 10px;
+}
+
+.card__fav {
+  position: absolute;
+  top: 10px;
+  right: 44px;
+  color: var(--muted);
+}
+
+.card__fav:hover {
+  color: var(--accent);
+}
+
+.card__fav.is-active {
+  color: var(--accent);
 }
 
 .menu {
@@ -467,44 +575,67 @@ code {
 .reader {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .reader__bar {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 14px;
-  padding: 12px clamp(16px, 4vw, 48px);
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px clamp(16px, 4vw, 48px);
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg) 84%, transparent);
   backdrop-filter: blur(14px);
 }
 
+.reader__back {
+  justify-self: start;
+  line-height: 1.2;
+}
+
 .reader__title {
-  flex: 1;
+  justify-self: center;
+  max-width: calc(100vw - 230px);
   margin: 0;
   overflow: hidden;
   font-size: 15px;
   font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
+.reader__tools {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .reader__main {
-  width: min(100%, 780px);
-  margin: 0 auto;
-  padding: 40px 24px 120px;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding: 32px 24px 24px;
+  overflow-y: auto;
 }
 
 .reader__article {
+  width: min(100%, 912px);
+  margin: 0 auto;
   line-height: 1.75;
 }
 
 .reader__hint {
-  margin-top: 48px;
+  width: min(100%, 912px);
+  margin: 32px auto 0;
   color: var(--muted);
   font-size: 12.5px;
   text-align: center;
@@ -677,25 +808,34 @@ code {
   text-align: left;
 }
 
-.prose .w {
-  margin: -1px -2px;
-  padding: 1px 2px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition:
-    background var(--transition),
-    color var(--transition);
+/* Слова в тексте подсвечиваются через CSS Custom Highlight API —
+   DOM не меняется, поэтому тема переключается мгновенно. */
+
+::highlight(sus-saved) {
+  background-color: rgba(229, 177, 104, 0.22);
 }
 
-@media (hover: hover) {
-  .prose .w:hover {
-    background: var(--word-hover);
-  }
+::highlight(sus-hover) {
+  background-color: rgba(229, 177, 104, 0.12);
 }
 
-.prose .w.is-active {
-  background: var(--word-active);
-  box-shadow: inset 0 -1px 0 var(--accent);
+::highlight(sus-active) {
+  background-color: rgba(229, 177, 104, 0.32);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+html[data-theme='light'] ::highlight(sus-saved) {
+  background-color: rgba(169, 106, 21, 0.18);
+}
+
+html[data-theme='light'] ::highlight(sus-hover) {
+  background-color: rgba(169, 106, 21, 0.1);
+}
+
+html[data-theme='light'] ::highlight(sus-active) {
+  background-color: rgba(169, 106, 21, 0.26);
 }
 
 /* ---------- карточка слова ---------- */
@@ -785,6 +925,31 @@ code {
 
 .word-card__hint--error {
   color: var(--danger);
+}
+
+.word-card__provider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.word-card__provider select {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.word-card__provider select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .word-card__error p {
@@ -1049,6 +1214,11 @@ code {
   outline-offset: 3px;
 }
 
+/* Кнопка словаря поднята над панелью страниц. */
+.fab--raised {
+  bottom: 96px;
+}
+
 .drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -1130,24 +1300,105 @@ code {
 }
 
 .dict-item {
-  display: flex;
-  gap: 10px;
+  display: block;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-2);
 }
 
-.dict-item__main {
-  flex: 1;
-  min-width: 0;
+.dict-item__footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
 }
 
 .dict-item__head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
+}
+
+.dict-item__delete {
+  margin-left: auto;
+}
+
+.dict-item__toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.dict-item__toggle-label {
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+}
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.switch__track {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-3);
+  transition: var(--transition);
+}
+
+.switch__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: var(--transition);
+}
+
+.switch input:checked + .switch__track {
+  border-color: transparent;
+  background: var(--accent);
+}
+
+.switch input:checked + .switch__track::after {
+  transform: translateX(14px);
+  background: var(--accent-ink);
+}
+
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch__label {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.icon-btn--small {  width: 26px;
+  height: 26px;
+  font-size: 13px;
 }
 
 .dict-item__word {
@@ -1157,6 +1408,7 @@ code {
 }
 
 .dict-item__ipa {
+  margin: 2px 0 0;
   color: var(--muted);
   font-size: 12.5px;
 }
@@ -1172,10 +1424,227 @@ code {
   font-size: 11.5px;
 }
 
-.dict-item__actions {
+/* ---------- постраничная навигация ---------- */
+
+.pager {
+  position: relative;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 60;
+  flex: none;
+  padding: 0 clamp(16px, 4vw, 48px);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.pager__slider {
+  position: relative;
+  padding: 12px 0 4px;
+}
+
+.pager__range {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pager__range::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 1px 5px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+.pager__range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent);
+  cursor: pointer;
+}
+
+.pager__range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.pager__marker {
+  position: absolute;
+  bottom: 8px;
+  width: 16px;
+  height: 20px;
+  margin-left: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+  transition: transform var(--transition);
+}
+
+.pager__marker:hover {
+  transform: translate(-50%, -2px);
+}
+
+.pager__marker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.pager__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.pager__stats {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.pager__percent {
+  color: var(--accent);
+}
+
+.pager__nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* На широких экранах листаем боковыми зонами, на узких — стрелками в панели. */
+.pager__arrow {
+  display: inline-flex;
+}
+
+@media (min-width: 1100px) {
+  .pager__arrow {
+    display: none;
+  }
+}
+
+.pager__input {
+  width: 52px;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+}
+
+.pager__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pager__input::-webkit-outer-spin-button,
+.pager__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.pager__total {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pager__bookmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.pager__bookmark.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ---------- боковые зоны листания ---------- */
+
+.page-zone {
+  position: fixed;
+  top: 58px;
+  bottom: 0;
+  z-index: 15;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: min(200px, calc((100vw - 960px) / 2 - 8px));
+  padding: 0 0 64px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 42px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+@media (min-width: 1100px) {
+  .page-zone {
+    display: flex;
+  }
+}
+
+.page-zone--left {
+  left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.page-zone--right {
+  right: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.page-zone:hover:not(:disabled) {
+  background: var(--zone-hover);
+  color: var(--text);
+}
+
+.page-zone:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+}
+
+.page-zone:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* ---------- адаптив ---------- */
@@ -1220,6 +1689,22 @@ code {
   .fab {
     right: 16px;
     bottom: 16px;
+  }
+
+  .fab--raised {
+    bottom: 84px;
+  }
+
+  .pager__stats {
+    font-size: 11px;
+  }
+
+  .pager__bookmark-text {
+    display: none;
+  }
+
+  .pager__input {
+    width: 46px;
   }
 }
 

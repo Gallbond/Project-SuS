@@ -8,6 +8,8 @@ export interface TextMeta {
   excerpt: string;
   createdAt: string;
   updatedAt: string;
+  cover: string | null;
+  favorite: boolean;
 }
 
 export interface TextDoc extends TextMeta {
@@ -34,6 +36,20 @@ export interface SavedWord {
   textId: string | null;
   textTitle: string | null;
   createdAt: string;
+  highlight: boolean;
+}
+
+export interface Bookmark {
+  page: number;
+  createdAt: string;
+}
+
+export interface ReadingState {
+  page: number;
+  pages: number;
+  readPages: number[];
+  bookmarks: Bookmark[];
+  updatedAt: string;
 }
 
 export class ApiError extends Error {
@@ -87,6 +103,23 @@ export const api = {
   deleteText: (id: string) =>
     request<{ ok: true }>(`/api/texts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
+  uploadCover: (id: string, dataUrl: string) =>
+    request<TextMeta>(`/api/texts/${encodeURIComponent(id)}/cover`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ dataUrl }),
+    }),
+
+  removeCover: (id: string) =>
+    request<TextMeta>(`/api/texts/${encodeURIComponent(id)}/cover`, { method: 'DELETE' }),
+
+  setFavorite: (id: string, favorite: boolean) =>
+    request<TextMeta>(`/api/texts/${encodeURIComponent(id)}/favorite`, {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ favorite }),
+    }),
+
   lookup: (word: string, lang: string, signal?: AbortSignal) =>
     request<LookupResult>(
       `/api/lookup?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`,
@@ -127,4 +160,20 @@ export const api = {
       `/api/dictionary?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`,
       { method: 'DELETE' },
     ),
+
+  setWordHighlight: (word: string, lang: string, highlight: boolean) =>
+    request<SavedWord>('/api/dictionary', {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify({ word, lang, highlight }),
+    }),
+
+  getReading: (id: string) => request<ReadingState>(`/api/reading/${encodeURIComponent(id)}`),
+
+  saveReading: (id: string, state: Omit<ReadingState, 'updatedAt'>) =>
+    request<ReadingState>(`/api/reading/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify(state),
+    }),
 };

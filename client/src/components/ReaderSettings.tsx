@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SPEEDS, useSettings } from '../lib/settings';
+import { SPEEDS, MAX_FONT_SIZE, MIN_FONT_SIZE, useSettings } from '../lib/settings';
 
 export function ReaderSettings() {
   const { settings, update } = useSettings();
@@ -42,7 +42,7 @@ export function ReaderSettings() {
             <div className="stepper">
               <button
                 type="button"
-                onClick={() => update({ fontSize: Math.max(16, settings.fontSize - 1) })}
+                onClick={() => update({ fontSize: Math.max(MIN_FONT_SIZE, settings.fontSize - 1) })}
                 aria-label="Меньше шрифт"
               >
                 −
@@ -50,7 +50,7 @@ export function ReaderSettings() {
               <span>{settings.fontSize}</span>
               <button
                 type="button"
-                onClick={() => update({ fontSize: Math.min(30, settings.fontSize + 1) })}
+                onClick={() => update({ fontSize: Math.min(MAX_FONT_SIZE, settings.fontSize + 1) })}
                 aria-label="Больше шрифт"
               >
                 +

@@ -59,6 +59,22 @@ export function DictionaryDrawer({ open, onClose }: DictionaryDrawerProps) {
     }
   };
 
+  const toggleHighlight = async (entry: SavedWord) => {
+    const next = !entry.highlight;
+    setWords(
+      (list) => list?.map((item) => (item.id === entry.id ? { ...item, highlight: next } : item)) ?? null,
+    );
+    try {
+      await api.setWordHighlight(entry.word, entry.lang, next);
+    } catch (cause) {
+      setWords(
+        (list) =>
+          list?.map((item) => (item.id === entry.id ? { ...item, highlight: !next } : item)) ?? null,
+      );
+      setError(cause instanceof Error ? cause.message : 'Не удалось изменить подсветку');
+    }
+  };
+
   return createPortal(
     <>
       <div className="drawer-backdrop" onMouseDown={onClose} />
@@ -85,24 +101,11 @@ export function DictionaryDrawer({ open, onClose }: DictionaryDrawerProps) {
           <ul className="dict-list">
             {(words ?? []).map((entry) => (
               <li className="dict-item" key={entry.id}>
-                <div className="dict-item__main">
-                  <div className="dict-item__head">
-                    <span className="dict-item__word">{entry.word}</span>
-                    {entry.ipa ? <span className="dict-item__ipa">[{entry.ipa}]</span> : null}
-                  </div>
-                  <p className="dict-item__translation">{entry.translation}</p>
-                  <p className="dict-item__meta">
-                    {entry.textTitle ?? 'без текста'} ·{' '}
-                    {new Date(entry.createdAt).toLocaleDateString('ru-RU', {
-                      day: 'numeric',
-                      month: 'short',
-                    })}
-                  </p>
-                </div>
-                <div className="dict-item__actions">
+                <div className="dict-item__head">
+                  <span className="dict-item__word">{entry.word}</span>
                   <button
                     type="button"
-                    className="icon-btn"
+                    className="icon-btn icon-btn--small"
                     title="Произнести"
                     aria-label={`Произнести ${entry.word}`}
                     onClick={() => speak(entry.word, settings.rate, entry.lang)}
@@ -111,13 +114,37 @@ export function DictionaryDrawer({ open, onClose }: DictionaryDrawerProps) {
                   </button>
                   <button
                     type="button"
-                    className="icon-btn"
+                    className="icon-btn icon-btn--small dict-item__delete"
                     title="Удалить из словаря"
                     aria-label={`Удалить ${entry.word}`}
                     onClick={() => void remove(entry)}
                   >
                     ✕
                   </button>
+                </div>
+                {entry.ipa ? <p className="dict-item__ipa">[{entry.ipa}]</p> : null}
+                <p className="dict-item__translation">{entry.translation}</p>
+                <div className="dict-item__footer">
+                  <p className="dict-item__meta">
+                    {entry.textTitle ?? 'без текста'} ·{' '}
+                    {new Date(entry.createdAt).toLocaleDateString('ru-RU', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </p>
+
+                  <div className="dict-item__toggle">
+                    <label className="switch" title="Подсвечивать слово в текстах">
+                      <input
+                        type="checkbox"
+                        checked={entry.highlight}
+                        onChange={() => void toggleHighlight(entry)}
+                        aria-label={`Подсвечивать «${entry.word}» в текстах`}
+                      />
+                      <span className="switch__track" aria-hidden="true" />
+                    </label>
+                    <span className="dict-item__toggle-label">В тексте</span>
+                  </div>
                 </div>
               </li>
             ))}

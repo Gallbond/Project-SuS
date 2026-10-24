@@ -8,6 +8,8 @@ dist/
 
 # кэш переводов и правки — локальные данные
 server/data/*.json
+server/data/backups/
 !server/data/.gitkeep
 
+# личные тексты и обложки в репозиторий не попадают
 texts/

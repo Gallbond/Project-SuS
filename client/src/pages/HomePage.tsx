@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type TextMeta } from '../lib/api';
+import { fileToCoverDataUrl } from '../lib/image';
 import { AddTextDialog } from '../components/AddTextDialog';
 import { Dialog } from '../components/Dialog';
 import { DictionaryDrawer } from '../components/DictionaryDrawer';
+import { StarIcon } from '../components/Icons';
 import { ThemeToggle } from '../components/ThemeToggle';
 
 function formatDate(iso: string): string {
@@ -39,6 +41,37 @@ export function HomePage() {
   const [deleting, setDeleting] = useState<TextMeta | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
+  const [coverTarget, setCoverTarget] = useState<TextMeta | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // Новую обложку можно поставить только из меню «⋯» на карточке.
+  const pickCover = (text: TextMeta) => {
+    setCoverTarget(text);
+    coverInputRef.current?.click();
+  };
+
+  const handleCoverFile = async (file: File) => {
+    const target = coverTarget;
+    setCoverTarget(null);
+    if (!target) return;
+    try {
+      const dataUrl = await fileToCoverDataUrl(file);
+      await api.uploadCover(target.id, dataUrl);
+      load();
+    } catch {
+      // Не удалось — просто не меняем обложку.
+    }
+  };
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setLightbox(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [lightbox]);
 
   const load = useCallback(() => {
     setError(null);
@@ -59,12 +92,34 @@ export function HomePage() {
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = (texts ?? []).filter((text) => text.title.toLowerCase().includes(needle));
-    return [...list].sort((a, b) =>
-      sort === 'title' ? a.title.localeCompare(b.title, 'ru') : b.createdAt.localeCompare(a.createdAt),
-    );
+    return [...list].sort((a, b) => {
+      // Избранные всегда сверху, дальше — выбранная сортировка.
+      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+      return sort === 'title'
+        ? a.title.localeCompare(b.title, 'ru')
+        : b.createdAt.localeCompare(a.createdAt);
+    });
   }, [texts, query, sort]);
 
   const openText = (id: string) => navigate(`/text/${encodeURIComponent(id)}`);
+
+  const removeCover = async (text: TextMeta) => {
+    try {
+      await api.removeCover(text.id);
+      load();
+    } catch {
+      // Обложка не удалилась — не критично.
+    }
+  };
+
+  const toggleFavorite = async (text: TextMeta) => {
+    try {
+      await api.setFavorite(text.id, !text.favorite);
+      load();
+    } catch {
+      // Не получилось — оставляем как было.
+    }
+  };
 
   // Закрываем меню карточки по клику в любом месте вне него.
   useEffect(() => {
@@ -163,6 +218,8 @@ export function HomePage() {
         <div className="grid">
           {visible.map((text) => (
             <article className={`card${menuId === text.id ? ' card--menu-open' : ''}`} key={text.id}>
+              <CardCover text={text} onOpen={setLightbox} />
+
               <button type="button" className="card__main" onClick={() => openText(text.id)}>
                 <span className="badge">{text.language.toUpperCase()}</span>
                 <h2 className="card__title">{text.title}</h2>
@@ -170,6 +227,16 @@ export function HomePage() {
                 <span className="card__meta">
                   {text.words} {pluralWords(text.words)} · {formatDate(text.createdAt)}
                 </span>
+              </button>
+
+              <button
+                type="button"
+                className={`icon-btn card__fav${text.favorite ? ' is-active' : ''}`}
+                onClick={() => void toggleFavorite(text)}
+                aria-label={text.favorite ? 'Убрать из избранного' : 'В избранное'}
+                title={text.favorite ? 'Убрать из избранного' : 'В избранное'}
+              >
+                <StarIcon filled={text.favorite} />
               </button>
 
               <div className="card__menu">
@@ -192,6 +259,26 @@ export function HomePage() {
                     >
                       Переименовать
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuId(null);
+                        pickCover(text);
+                      }}
+                    >
+                      {text.cover ? 'Заменить обложку' : 'Добавить обложку'}
+                    </button>
+                    {text.cover ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuId(null);
+                          void removeCover(text);
+                        }}
+                      >
+                        Убрать обложку
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="menu__danger"
@@ -243,7 +330,53 @@ export function HomePage() {
       ) : null}
 
       <DictionaryDrawer open={dictionaryOpen} onClose={() => setDictionaryOpen(false)} />
+
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) void handleCoverFile(file);
+        }}
+      />
+
+      {lightbox ? (
+        <div className="lightbox" onClick={() => setLightbox(null)} role="dialog" aria-modal="true" aria-label="Обложка">
+          <img src={lightbox} alt="" />
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+interface CoverUploadProps {
+  text: TextMeta;
+  onOpen: (cover: string) => void;
+}
+
+/** Обложка слева на карточке: картинка (открывается крупно) или «плюсик». */
+function CardCover({ text, onOpen }: CoverUploadProps) {
+  if (!text.cover) {
+    return (
+      <div className="card__cover card__cover--empty" aria-hidden="true">
+        <span>?</span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="card__cover"
+      onClick={() => onOpen(text.cover as string)}
+      aria-label="Открыть обложку"
+      title="Открыть обложку"
+    >
+      <img src={text.cover} alt="" loading="lazy" />
+    </button>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, type LookupResult } from '../lib/api';
+import { clearHighlight, setHighlight } from '../lib/highlights';
 import { useSettings } from '../lib/settings';
 import { speak, stopSpeaking, useVoices } from '../lib/tts';
 import type { WordHit } from './Markdown';
@@ -15,6 +16,8 @@ interface WordCardProps {
   lang: string;
   /** Откуда слово — чтобы в словаре было видно источник. */
   text?: { id: string; title: string } | null;
+  /** Сообщает читалке, что слово добавлено/убрано — чтобы обновить подсветку. */
+  onSavedChange?: (word: string, saved: boolean) => void;
   onClose: () => void;
 }
 
@@ -29,7 +32,7 @@ function sourceLabel(source: LookupResult['source']): string {
   }
 }
 
-export function WordCard({ hit, lang, text, onClose }: WordCardProps) {
+export function WordCard({ hit, lang, text, onSavedChange, onClose }: WordCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<LookupState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -51,11 +54,11 @@ export function WordCard({ hit, lang, text, onClose }: WordCardProps) {
     return () => query.removeEventListener('change', update);
   }, []);
 
-  // Подсветка активного слова.
+  // Подсветка активного слова (без изменения DOM — через Highlight API).
   useEffect(() => {
     if (!hit) return;
-    hit.element.classList.add('is-active');
-    return () => hit.element.classList.remove('is-active');
+    setHighlight('sus-active', [hit.range]);
+    return () => clearHighlight('sus-active');
   }, [hit]);
 
   useEffect(() => {
@@ -83,7 +86,7 @@ export function WordCard({ hit, lang, text, onClose }: WordCardProps) {
     const place = () => {
       const card = cardRef.current;
       if (!card) return;
-      const rect = hit.element.getBoundingClientRect();
+      const rect = hit.range.getBoundingClientRect();
       const width = card.offsetWidth;
       const height = card.offsetHeight;
       const margin = 10;
@@ -113,7 +116,8 @@ export function WordCard({ hit, lang, text, onClose }: WordCardProps) {
     const onDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (cardRef.current?.contains(target)) return;
-      if (hit.element.contains(target)) return;
+      const anchor = hit.range.startContainer.parentElement;
+      if (anchor?.contains(target)) return;
       onClose();
     };
     document.addEventListener('keydown', onKey);
@@ -167,6 +171,7 @@ export function WordCard({ hit, lang, text, onClose }: WordCardProps) {
       if (result.saved) {
         await api.removeSavedWord(result.word, lang);
         setState({ status: 'ok', result: { ...result, saved: false } });
+        onSavedChange?.(result.word, false);
       } else {
         await api.saveWord({
           word: result.word,
@@ -177,6 +182,7 @@ export function WordCard({ hit, lang, text, onClose }: WordCardProps) {
           textTitle: text?.title ?? null,
         });
         setState({ status: 'ok', result: { ...result, saved: true } });
+        onSavedChange?.(result.word, true);
       }
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : 'Не удалось сохранить слово');

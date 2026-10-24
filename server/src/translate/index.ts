@@ -11,9 +11,7 @@ export interface LookupResult {
   translation: string;
   source: TranslationSource;
   cached: boolean;
-  /** Транскрипция IPA, если нашлась в словаре. */
   ipa: string | null;
-  /** Слово уже сохранено в личный словарь. */
   saved: boolean;
 }
 
@@ -24,34 +22,6 @@ function assertLang(value: string, field: string): string {
   return value.toLowerCase();
 }
 
-interface TranslationOutcome {
-  translation: string;
-  source: TranslationSource;
-  cached: boolean;
-}
-
-async function resolveTranslation(
-  word: string,
-  from: string,
-  to: string,
-): Promise<TranslationOutcome> {
-  const key = lookupKey(from, to, word);
-
-  const override = overrides.get(key);
-  if (override) {
-    return { translation: override.translation, source: 'override', cached: false };
-  }
-
-  const cached = cache.get(key);
-  if (cached) {
-    return { translation: cached.translation, source: 'cache', cached: true };
-  }
-
-  const translation = await translateWithMyMemory(word, from, to);
-  cache.set(key, { translation, source: 'mymemory', fetchedAt: new Date().toISOString() });
-  return { translation, source: 'mymemory', cached: false };
-}
-
 export async function lookup(word: string, lang: string, target: string): Promise<LookupResult> {
   const clean = word.trim();
   if (!clean) throw new ApiError(400, 'Пустое слово', 'EMPTY_WORD');
@@ -59,22 +29,44 @@ export async function lookup(word: string, lang: string, target: string): Promis
 
   const from = assertLang(lang, 'lang');
   const to = assertLang(target, 'target');
+  const key = lookupKey(from, to, clean);
+  const ipaPromise = lookupIPA(clean, from);
+  const saved = isSaved(clean, from);
 
-  // Перевод и транскрипция независимы — запрашиваем параллельно.
-  const [translation, ipa] = await Promise.allSettled([
-    resolveTranslation(clean, from, to),
-    lookupIPA(clean, from),
-  ]);
+  const override = overrides.get(key);
+  if (override) {
+    return {
+      word: clean,
+      translation: override.translation,
+      source: 'override',
+      cached: false,
+      ipa: await ipaPromise,
+      saved,
+    };
+  }
 
-  if (translation.status === 'rejected') throw translation.reason;
+  const cached = cache.get(key);
+  if (cached) {
+    return {
+      word: clean,
+      translation: cached.translation,
+      source: 'cache',
+      cached: true,
+      ipa: await ipaPromise,
+      saved,
+    };
+  }
+
+  const translation = await translateWithMyMemory(clean, from, to);
+  cache.set(key, { translation, source: 'mymemory', fetchedAt: new Date().toISOString() });
 
   return {
     word: clean,
-    translation: translation.value.translation,
-    source: translation.value.source,
-    cached: translation.value.cached,
-    ipa: ipa.status === 'fulfilled' ? ipa.value : null,
-    saved: isSaved(clean, from),
+    translation,
+    source: 'mymemory',
+    cached: false,
+    ipa: await ipaPromise,
+    saved,
   };
 }
 

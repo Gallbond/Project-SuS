@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listWords, removeWord, saveWord } from '../dictionary';
+import { listWords, removeWord, saveWord, setWordHighlight } from '../dictionary';
 import { ApiError } from '../errors';
 
 export const dictionaryRouter = Router();
@@ -26,6 +26,18 @@ dictionaryRouter.post('/', (req, res) => {
   });
 
   res.status(201).json(entry);
+});
+
+dictionaryRouter.patch('/', (req, res) => {
+  const { word, lang, highlight } = (req.body ?? {}) as Record<string, unknown>;
+
+  if (typeof word !== 'string' || !word.trim()) throw new ApiError(400, 'Пустое слово', 'EMPTY_WORD');
+  if (typeof highlight !== 'boolean') throw new ApiError(400, 'Нужно поле highlight', 'NO_HIGHLIGHT');
+
+  const entry = setWordHighlight(word, typeof lang === 'string' && lang ? lang : 'pl', highlight);
+  if (!entry) throw new ApiError(404, 'Слова нет в словаре', 'NOT_FOUND');
+
+  res.json(entry);
 });
 
 dictionaryRouter.delete('/', (req, res) => {

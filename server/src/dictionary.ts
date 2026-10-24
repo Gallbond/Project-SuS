@@ -9,6 +9,8 @@ export interface SavedWord {
   textId: string | null;
   textTitle: string | null;
   createdAt: string;
+  /** Показывать слово подсветкой в текстах. */
+  highlight: boolean;
 }
 
 const store = new JsonStore<SavedWord>('dictionary.json');
@@ -17,8 +19,15 @@ function keyOf(word: string, lang: string): string {
   return `${lang.toLowerCase()}|${word.trim().toLowerCase()}`;
 }
 
+/** Older entries have no `highlight` field — считаем их включёнными. */
+function normalize(entry: SavedWord): SavedWord {
+  return { ...entry, highlight: entry.highlight !== false };
+}
+
 export function listWords(): SavedWord[] {
-  return Object.values(store.all()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return Object.values(store.all())
+    .map(normalize)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function isSaved(word: string, lang: string): boolean {
@@ -48,6 +57,7 @@ export function saveWord(input: SaveWordInput): SavedWord {
     textId: input.textId ?? existing?.textId ?? null,
     textTitle: input.textTitle ?? existing?.textTitle ?? null,
     createdAt: existing?.createdAt ?? new Date().toISOString(),
+    highlight: existing ? existing.highlight !== false : true,
   };
 
   store.set(key, entry);
@@ -56,6 +66,17 @@ export function saveWord(input: SaveWordInput): SavedWord {
 
 export function removeWord(word: string, lang: string): boolean {
   return store.delete(keyOf(word, lang));
+}
+
+/** Включает или выключает подсветку слова в текстах. */
+export function setWordHighlight(word: string, lang: string, highlight: boolean): SavedWord | null {
+  const key = keyOf(word, lang);
+  const existing = store.get(key);
+  if (!existing) return null;
+
+  const next: SavedWord = { ...normalize(existing), highlight };
+  store.set(key, next);
+  return next;
 }
 
 /** Если слово уже сохранено, а перевод поправили — обновляем и запись в словаре. */

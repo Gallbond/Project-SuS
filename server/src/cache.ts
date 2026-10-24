@@ -2,7 +2,7 @@ import { JsonStore } from './store';
 
 export interface CacheEntry {
   translation: string;
-  source: 'mymemory';
+  source: string;
   fetchedAt: string;
 }
 

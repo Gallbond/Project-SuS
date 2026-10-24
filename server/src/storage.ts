@@ -15,6 +15,10 @@ export interface TextMeta {
   excerpt: string;
   createdAt: string;
   updatedAt: string;
+  /** Ссылка на обложку или null, если её нет. */
+  cover: string | null;
+  /** Избранный текст показывается первым в списке. */
+  favorite: boolean;
 }
 
 export interface TextDoc extends TextMeta {
@@ -22,6 +26,34 @@ export interface TextDoc extends TextMeta {
 }
 
 const TEXT_FILE = /\.(md|markdown|txt)$/i;
+const COVER_EXTENSIONS = ['jpg', 'png', 'webp'] as const;
+type CoverExt = (typeof COVER_EXTENSIONS)[number];
+
+function coverPath(id: string, ext: string): string {
+  return path.join(TEXTS_DIR, `${id}.cover.${ext}`);
+}
+
+function findCover(id: string): { ext: CoverExt; mtimeMs: number } | null {
+  for (const ext of COVER_EXTENSIONS) {
+    try {
+      const stat = fs.statSync(coverPath(id, ext));
+      return { ext, mtimeMs: stat.mtimeMs };
+    } catch {
+      // такой обложки нет — пробуем следующий формат
+    }
+  }
+  return null;
+}
+
+function removeCoverFiles(id: string): void {
+  for (const ext of COVER_EXTENSIONS) {
+    try {
+      fs.unlinkSync(coverPath(id, ext));
+    } catch {
+      // файла нет — и хорошо
+    }
+  }
+}
 
 /** Транслитерация для безопасных имён файлов. */
 const TRANSLIT: Record<string, string> = {
@@ -103,6 +135,8 @@ async function readDoc(id: string): Promise<TextDoc> {
   // В превью не нужен заголовок — он дублирует название текста.
   const plainForExcerpt = stripMarkup(body.replace(/^#{1,6}[^\n]*$/gm, ''));
 
+  const cover = findCover(id);
+
   return {
     id,
     title:
@@ -116,6 +150,8 @@ async function readDoc(id: string): Promise<TextDoc> {
     excerpt: makeExcerpt(plainForExcerpt),
     createdAt: toIso(data.created) ?? stat.mtime.toISOString(),
     updatedAt: stat.mtime.toISOString(),
+    cover: cover ? `/api/texts/${encodeURIComponent(id)}/cover?v=${Math.round(cover.mtimeMs)}` : null,
+    favorite: data.favorite === true,
     body,
   };
 }
@@ -131,6 +167,8 @@ function toMeta(doc: TextDoc): TextMeta {
     excerpt: doc.excerpt,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+    cover: doc.cover,
+    favorite: doc.favorite,
   };
 }
 
@@ -221,10 +259,15 @@ export async function renameText(id: string, title: string): Promise<TextDoc> {
   };
   if (doc.level) frontmatter.level = doc.level;
   if (doc.tags.length) frontmatter.tags = doc.tags;
+  if (doc.favorite) frontmatter.favorite = true;
 
   const file = matter.stringify(doc.body, frontmatter);
   await fsp.writeFile(path.join(TEXTS_DIR, `${targetId}.md`), file, 'utf8');
-  if (targetId !== id) await fsp.rm(path.join(TEXTS_DIR, `${id}.md`));
+  if (targetId !== id) {
+    await fsp.rm(path.join(TEXTS_DIR, `${id}.md`));
+    const cover = findCover(id);
+    if (cover) await fsp.rename(coverPath(id, cover.ext), coverPath(targetId, cover.ext));
+  }
 
   return readDoc(targetId);
 }
@@ -239,4 +282,48 @@ export async function deleteText(id: string): Promise<void> {
     }
     throw error;
   }
+  removeCoverFiles(id);
+}
+
+/* ---------- обложки ---------- */
+
+export async function setCover(id: string, ext: string, data: Buffer): Promise<TextDoc> {
+  await getText(id);
+  removeCoverFiles(id);
+  await fsp.writeFile(coverPath(id, ext), data);
+  return readDoc(id);
+}
+
+export async function deleteCover(id: string): Promise<TextDoc> {
+  await getText(id);
+  removeCoverFiles(id);
+  return readDoc(id);
+}
+
+/** Ставит или снимает отметку «избранное» (хранится в frontmatter текста). */
+export async function setFavorite(id: string, favorite: boolean): Promise<TextDoc> {
+  const doc = await getText(id);
+
+  const frontmatter: Record<string, unknown> = {
+    title: doc.title,
+    language: doc.language,
+    created: doc.createdAt.slice(0, 10),
+  };
+  if (doc.level) frontmatter.level = doc.level;
+  if (doc.tags.length) frontmatter.tags = doc.tags;
+  if (favorite) frontmatter.favorite = true;
+
+  const file = matter.stringify(doc.body, frontmatter);
+  await fsp.writeFile(path.join(TEXTS_DIR, `${id}.md`), file, 'utf8');
+  return readDoc(id);
+}
+
+export function readCover(id: string): { data: Buffer; contentType: string } | null {
+  assertId(id);
+  const found = findCover(id);
+  if (!found) return null;
+  return {
+    data: fs.readFileSync(coverPath(id, found.ext)),
+    contentType: found.ext === 'jpg' ? 'image/jpeg' : `image/${found.ext}`,
+  };
 }
