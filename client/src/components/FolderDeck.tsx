@@ -99,11 +99,15 @@ export function FolderDeck({
         className={`folder__deck${over ? ' folder__deck--over' : ''}${count ? '' : ' folder__deck--empty'}`}
         onMouseMove={(event) => {
           const target = event.target as HTMLElement;
-          // Пока курсор над активной картой, ничего не переключаем — иначе
-          // до крестика в углу не дотянуться: карта «убегает» под курсором.
-          if (target.closest('.folder__card--active')) return;
-          // И уж точно не переключаем, когда курсор на самом крестике.
+          // Курсор на самом крестике — не переключаем.
           if (target.closest('.folder__card-remove')) return;
+
+          // Верхняя часть колоды — «зона крестика»: там карты не меняются,
+          // иначе кнопка убегает от курсора. Ниже переключение работает,
+          // в том числе при движении по диагонали вниз.
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (event.clientY - rect.top < rect.height * 0.45) return;
+
           pickActive(event.currentTarget, event.clientX);
         }}
         onMouseLeave={() => setActive(null)}
