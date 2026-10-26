@@ -42,6 +42,9 @@ export function WordCard({ hit, lang, text, onSavedChange, onClose }: WordCardPr
   const [draft, setDraft] = useState('');
   const [savingWord, setSavingWord] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteStatus, setNoteStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const { settings } = useSettings();
   const voices = useVoices(lang);
   const canSpeak = voices.length > 0;
@@ -67,6 +70,8 @@ export function WordCard({ hit, lang, text, onSavedChange, onClose }: WordCardPr
     setState({ status: 'loading' });
     setEditing(false);
     setSaveError(null);
+    setExpanded(false);
+    setNoteStatus('idle');
     api
       .lookup(hit.word, lang, controller.signal)
       .then((result) => setState({ status: 'ok', result }))
@@ -106,7 +111,7 @@ export function WordCard({ hit, lang, text, onSavedChange, onClose }: WordCardPr
       window.removeEventListener('scroll', place, true);
       window.removeEventListener('resize', place);
     };
-  }, [hit, isMobile, state.status, editing]);
+  }, [hit, isMobile, state.status, editing, expanded]);
 
   useEffect(() => {
     if (!hit) return;
@@ -188,6 +193,40 @@ export function WordCard({ hit, lang, text, onSavedChange, onClose }: WordCardPr
       setSaveError(cause instanceof Error ? cause.message : 'Не удалось сохранить слово');
     } finally {
       setSavingWord(false);
+    }
+  };
+
+  const saveNote = async () => {
+    if (state.status !== 'ok') return;
+    const clean = noteDraft.trim();
+    if (clean === state.result.note) return;
+
+    try {
+      const { note } = await api.saveNote(state.result.word, lang, clean);
+
+      // Заметка к слову, которого нет в словаре, добавляет его туда автоматически.
+      let saved = state.result.saved;
+      if (clean && !saved) {
+        try {
+          await api.saveWord({
+            word: state.result.word,
+            lang,
+            translation: state.result.translation,
+            ipa: state.result.ipa,
+            textId: text?.id ?? null,
+            textTitle: text?.title ?? null,
+          });
+          saved = true;
+          onSavedChange?.(state.result.word, true);
+        } catch {
+          // Не вышло добавить в словарь — заметка всё равно сохранена.
+        }
+      }
+
+      setState({ status: 'ok', result: { ...state.result, note, saved } });
+      setNoteStatus('saved');
+    } catch {
+      setNoteStatus('error');
     }
   };
 
@@ -313,6 +352,52 @@ export function WordCard({ hit, lang, text, onSavedChange, onClose }: WordCardPr
             </button>
           </div>
         </div>
+      ) : null}
+      {state.status === 'ok' && !editing ? (
+        <>
+          <button
+            type="button"
+            className={`word-card__note-toggle${expanded ? ' is-open' : ''}`}
+            onClick={() => {
+              if (!expanded && state.status === 'ok') setNoteDraft(state.result.note ?? '');
+              setNoteStatus('idle');
+              setExpanded((value) => !value);
+            }}
+            aria-expanded={expanded}
+            title={expanded ? 'Свернуть заметку' : 'Личная заметка'}
+          >
+            <span>Заметка</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path
+                d="M2 4.5 6 8.5l4-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          {expanded ? (
+            <div className="word-card__note">
+              <textarea
+                autoFocus
+                rows={3}
+                value={noteDraft}
+                placeholder="Личная заметка об этом слове…"
+                onChange={(event) => {
+                  setNoteDraft(event.target.value);
+                  setNoteStatus('idle');
+                }}
+                onBlur={() => void saveNote()}
+              />
+              <span className="word-card__note-status">
+                {noteStatus === 'saved' ? 'Сохранено' : noteStatus === 'error' ? 'Не сохранилось' : ''}
+              </span>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>,
     document.body,

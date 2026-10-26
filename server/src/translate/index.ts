@@ -2,6 +2,7 @@ import { cache, lookupKey, overrides } from '../cache';
 import { isSaved, updateSavedTranslation } from '../dictionary';
 import { ApiError } from '../errors';
 import { lookupIPA } from '../ipa';
+import { getNote } from '../notes';
 import { translateWithMyMemory } from './mymemory';
 
 export type TranslationSource = 'override' | 'cache' | 'mymemory';
@@ -13,6 +14,8 @@ export interface LookupResult {
   cached: boolean;
   ipa: string | null;
   saved: boolean;
+  /** Заметка отдаётся всегда: иначе клиент теряет её после правки перевода. */
+  note: string;
 }
 
 const LANG_RE = /^[a-z]{2,3}(-[a-z]{2,4})?$/i;
@@ -32,6 +35,7 @@ export async function lookup(word: string, lang: string, target: string): Promis
   const key = lookupKey(from, to, clean);
   const ipaPromise = lookupIPA(clean, from);
   const saved = isSaved(clean, from);
+  const note = getNote(clean, from);
 
   const override = overrides.get(key);
   if (override) {
@@ -42,6 +46,7 @@ export async function lookup(word: string, lang: string, target: string): Promis
       cached: false,
       ipa: await ipaPromise,
       saved,
+      note,
     };
   }
 
@@ -54,6 +59,7 @@ export async function lookup(word: string, lang: string, target: string): Promis
       cached: true,
       ipa: await ipaPromise,
       saved,
+      note,
     };
   }
 
@@ -67,6 +73,7 @@ export async function lookup(word: string, lang: string, target: string): Promis
     cached: false,
     ipa: await ipaPromise,
     saved,
+    note,
   };
 }
 
@@ -94,6 +101,7 @@ export async function saveOverride(
     cached: false,
     ipa: await lookupIPA(clean, from),
     saved: isSaved(clean, from),
+    note: getNote(clean, from),
   };
 }
 

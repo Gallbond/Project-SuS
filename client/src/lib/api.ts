@@ -25,6 +25,8 @@ export interface LookupResult {
   cached: boolean;
   ipa: string | null;
   saved: boolean;
+  /** Личная заметка к слову (пустая строка, если её нет). */
+  note: string;
 }
 
 export interface SavedWord {
@@ -37,6 +39,7 @@ export interface SavedWord {
   textTitle: string | null;
   createdAt: string;
   highlight: boolean;
+  note: string;
 }
 
 export interface Bookmark {
@@ -138,6 +141,13 @@ export const api = {
       `/api/lookup/override?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`,
       { method: 'DELETE' },
     ),
+
+  saveNote: (word: string, lang: string, text: string) =>
+    request<{ note: string }>('/api/lookup/note', {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ word, lang, text }),
+    }),
 
   dictionary: () => request<{ words: SavedWord[] }>('/api/dictionary').then((data) => data.words),
 

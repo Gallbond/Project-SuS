@@ -1235,7 +1235,8 @@ html[data-theme='light'] ::highlight(sus-active) {
   z-index: 111;
   display: flex;
   flex-direction: column;
-  width: min(420px, 100%);
+  width: min(420px, 72vw);
+  max-width: calc(100vw - 56px);
   border-left: 1px solid var(--border-strong);
   background: var(--surface);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.35);
@@ -1645,6 +1646,144 @@ html[data-theme='light'] ::highlight(sus-active) {
 .page-zone:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+.word-card__note-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(100% + 32px);
+  margin: 10px -16px -16px;
+  padding: 8px 0 9px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 13px 13px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color var(--transition),
+    background var(--transition);
+}
+
+.word-card__note-toggle:hover {
+  background: var(--word-hover);
+  color: var(--text);
+}
+
+.word-card__note-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.word-card__note-toggle.is-open {
+  margin-bottom: 0;
+  border-radius: 0;
+}
+
+.word-card__note-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+
+.word-card__note {
+  margin: 10px 0 0;
+}
+
+.word-card__note textarea {
+  width: 100%;
+  min-height: 78px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.word-card__note textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.word-card__note-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  text-align: right;
+}
+
+.dict-item__note {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--word-hover);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.dict-item__note-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.dict-item__note-toggle:hover {
+  color: var(--text);
+}
+
+.dict-item__note-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.dict-item__note-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+
+.dict-item__note-edit {
+  margin: 0 0 8px;
+}
+
+.dict-item__note-edit textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.dict-item__note-edit textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dict-item__note-status {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
 }
 
 /* ---------- адаптив ---------- */

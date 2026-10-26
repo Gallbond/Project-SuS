@@ -1,6 +1,7 @@
 import { JsonStore } from './store';
+import { deleteNote, getNote } from './notes';
 
-export interface SavedWord {
+export interface WordRecord {
   id: string;
   word: string;
   lang: string;
@@ -13,20 +14,30 @@ export interface SavedWord {
   highlight: boolean;
 }
 
-const store = new JsonStore<SavedWord>('dictionary.json');
+/** Слово в словаре вместе с личной заметкой (заметки лежат отдельно, в notes.json). */
+export interface SavedWord extends WordRecord {
+  note: string;
+}
+
+const store = new JsonStore<WordRecord>('dictionary.json');
 
 function keyOf(word: string, lang: string): string {
   return `${lang.toLowerCase()}|${word.trim().toLowerCase()}`;
 }
 
 /** Older entries have no `highlight` field — считаем их включёнными. */
-function normalize(entry: SavedWord): SavedWord {
+function normalize(entry: WordRecord): WordRecord {
   return { ...entry, highlight: entry.highlight !== false };
+}
+
+function withNote(entry: WordRecord): SavedWord {
+  return { ...entry, note: getNote(entry.word, entry.lang) };
 }
 
 export function listWords(): SavedWord[] {
   return Object.values(store.all())
     .map(normalize)
+    .map(withNote)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -48,7 +59,7 @@ export function saveWord(input: SaveWordInput): SavedWord {
   const key = keyOf(input.word, input.lang);
   const existing = store.get(key);
 
-  const entry: SavedWord = {
+  const entry: WordRecord = {
     id: key,
     word: input.word.trim(),
     lang: input.lang.toLowerCase(),
@@ -61,11 +72,14 @@ export function saveWord(input: SaveWordInput): SavedWord {
   };
 
   store.set(key, entry);
-  return entry;
+  return withNote(entry);
 }
 
+/** Удаляет слово вместе с его заметкой — как удаление текста уносит его прогресс. */
 export function removeWord(word: string, lang: string): boolean {
-  return store.delete(keyOf(word, lang));
+  if (!store.delete(keyOf(word, lang))) return false;
+  deleteNote(word, lang);
+  return true;
 }
 
 /** Включает или выключает подсветку слова в текстах. */
@@ -74,9 +88,9 @@ export function setWordHighlight(word: string, lang: string, highlight: boolean)
   const existing = store.get(key);
   if (!existing) return null;
 
-  const next: SavedWord = { ...normalize(existing), highlight };
+  const next: WordRecord = { ...normalize(existing), highlight };
   store.set(key, next);
-  return next;
+  return withNote(next);
 }
 
 /** Если слово уже сохранено, а перевод поправили — обновляем и запись в словаре. */

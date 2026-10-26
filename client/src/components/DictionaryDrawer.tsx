@@ -9,6 +9,131 @@ interface DictionaryDrawerProps {
   onClose: () => void;
 }
 
+interface DictItemProps {
+  entry: SavedWord;
+  rate: number;
+  onRemove: (entry: SavedWord) => void;
+  onToggleHighlight: (entry: SavedWord) => void;
+  onNoteChange: (id: string, note: string) => void;
+}
+
+/** Карточка слова в словаре: перевод, подсветка и личная заметка. */
+function DictItem({ entry, rate, onRemove, onToggleHighlight, onNoteChange }: DictItemProps) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(entry.note);
+  const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+
+  // Свежий текст заметки подставляем при раскрытии поля.
+  useEffect(() => {
+    if (open) setDraft(entry.note);
+  }, [open, entry.note]);
+
+  const saveNote = async () => {
+    const clean = draft.trim();
+    if (clean === entry.note) return;
+    try {
+      const { note } = await api.saveNote(entry.word, entry.lang, clean);
+      onNoteChange(entry.id, note);
+      setStatus('saved');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <li className="dict-item">
+      <div className="dict-item__head">
+        <span className="dict-item__word">{entry.word}</span>
+        <button
+          type="button"
+          className="icon-btn icon-btn--small"
+          title="Произнести"
+          aria-label={`Произнести ${entry.word}`}
+          onClick={() => speak(entry.word, rate, entry.lang)}
+        >
+          ▶
+        </button>
+        <button
+          type="button"
+          className="icon-btn icon-btn--small dict-item__delete"
+          title="Удалить из словаря"
+          aria-label={`Удалить ${entry.word}`}
+          onClick={() => onRemove(entry)}
+        >
+          ✕
+        </button>
+      </div>
+
+      {entry.ipa ? <p className="dict-item__ipa">[{entry.ipa}]</p> : null}
+      <p className="dict-item__translation">{entry.translation}</p>
+
+      {entry.note && !open ? <p className="dict-item__note">{entry.note}</p> : null}
+
+      <button
+        type="button"
+        className={`dict-item__note-toggle${open ? ' is-open' : ''}`}
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        title={open ? 'Свернуть заметку' : 'Личная заметка'}
+      >
+        <span>Заметка</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path
+            d="M2 4.5 6 8.5l4-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {open ? (
+        <div className="dict-item__note-edit">
+          <textarea
+            autoFocus
+            rows={2}
+            value={draft}
+            placeholder="Личная заметка об этом слове…"
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setStatus('idle');
+            }}
+            onBlur={() => void saveNote()}
+          />
+          <span className="dict-item__note-status">
+            {status === 'saved' ? 'Сохранено' : status === 'error' ? 'Не сохранилось' : ''}
+          </span>
+        </div>
+      ) : null}
+
+      <div className="dict-item__footer">
+        <p className="dict-item__meta">
+          {entry.textTitle ?? 'без текста'} ·{' '}
+          {new Date(entry.createdAt).toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'short',
+          })}
+        </p>
+
+        <div className="dict-item__toggle">
+          <label className="switch" title="Подсвечивать слово в текстах">
+            <input
+              type="checkbox"
+              checked={entry.highlight}
+              onChange={() => onToggleHighlight(entry)}
+              aria-label={`Подсвечивать «${entry.word}» в текстах`}
+            />
+            <span className="switch__track" aria-hidden="true" />
+          </label>
+          <span className="dict-item__toggle-label">В тексте</span>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function DictionaryDrawer({ open, onClose }: DictionaryDrawerProps) {
   const [words, setWords] = useState<SavedWord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +200,10 @@ export function DictionaryDrawer({ open, onClose }: DictionaryDrawerProps) {
     }
   };
 
+  const setNote = (id: string, note: string) => {
+    setWords((list) => list?.map((item) => (item.id === id ? { ...item, note } : item)) ?? null);
+  };
+
   return createPortal(
     <>
       <div className="drawer-backdrop" onMouseDown={onClose} />
@@ -100,53 +229,14 @@ export function DictionaryDrawer({ open, onClose }: DictionaryDrawerProps) {
 
           <ul className="dict-list">
             {(words ?? []).map((entry) => (
-              <li className="dict-item" key={entry.id}>
-                <div className="dict-item__head">
-                  <span className="dict-item__word">{entry.word}</span>
-                  <button
-                    type="button"
-                    className="icon-btn icon-btn--small"
-                    title="Произнести"
-                    aria-label={`Произнести ${entry.word}`}
-                    onClick={() => speak(entry.word, settings.rate, entry.lang)}
-                  >
-                    ▶
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn icon-btn--small dict-item__delete"
-                    title="Удалить из словаря"
-                    aria-label={`Удалить ${entry.word}`}
-                    onClick={() => void remove(entry)}
-                  >
-                    ✕
-                  </button>
-                </div>
-                {entry.ipa ? <p className="dict-item__ipa">[{entry.ipa}]</p> : null}
-                <p className="dict-item__translation">{entry.translation}</p>
-                <div className="dict-item__footer">
-                  <p className="dict-item__meta">
-                    {entry.textTitle ?? 'без текста'} ·{' '}
-                    {new Date(entry.createdAt).toLocaleDateString('ru-RU', {
-                      day: 'numeric',
-                      month: 'short',
-                    })}
-                  </p>
-
-                  <div className="dict-item__toggle">
-                    <label className="switch" title="Подсвечивать слово в текстах">
-                      <input
-                        type="checkbox"
-                        checked={entry.highlight}
-                        onChange={() => void toggleHighlight(entry)}
-                        aria-label={`Подсвечивать «${entry.word}» в текстах`}
-                      />
-                      <span className="switch__track" aria-hidden="true" />
-                    </label>
-                    <span className="dict-item__toggle-label">В тексте</span>
-                  </div>
-                </div>
-              </li>
+              <DictItem
+                key={entry.id}
+                entry={entry}
+                rate={settings.rate}
+                onRemove={remove}
+                onToggleHighlight={toggleHighlight}
+                onNoteChange={setNote}
+              />
             ))}
           </ul>
         </div>

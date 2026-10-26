@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ApiError } from '../errors';
+import { setNote } from '../notes';
 import { lookup, removeOverride, saveOverride } from '../translate';
 
 export const lookupRouter = Router();
@@ -13,6 +14,14 @@ lookupRouter.get('/', async (req, res) => {
   const lang = queryString(req.query.lang, 'pl');
   const target = queryString(req.query.target, 'ru');
   res.json(await lookup(word, lang, target));
+});
+
+lookupRouter.put('/note', async (req, res) => {
+  const { word, lang, text } = (req.body ?? {}) as Record<string, unknown>;
+  if (typeof word !== 'string' || !word.trim() || typeof text !== 'string') {
+    throw new ApiError(400, 'Нужны поля word и text', 'BAD_REQUEST');
+  }
+  res.json({ note: setNote(word, typeof lang === 'string' ? lang : 'pl', text) });
 });
 
 lookupRouter.put('/override', async (req, res) => {
