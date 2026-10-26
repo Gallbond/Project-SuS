@@ -21,11 +21,18 @@ export interface PageLayout {
 }
 
 /**
- * Эталон вёрстки: шрифт 18, колонка 912 px, 27 строк на страницу.
- * Страницы не зависят ни от размера шрифта, ни от разрешения экрана.
+ * Масштаб интерфейса: исходный макет (18 px на 912 px) увеличен на 10%.
+ * Все размеры в styles.css — это значения макета, умноженные на этот коэффициент,
+ * а размер шрифта из настроек умножается здесь, при выводе.
  */
-export const PAGE_WIDTH = 912;
-export const PAGE_FONT_SIZE = 18;
+export const UI_SCALE = 1.1;
+
+/**
+ * Эталон вёрстки: шрифт 18, колонка 912 px, 27 строк на страницу — в единицах макета.
+ * В пикселях это 19,8 / 1003,2 / 27; страницы не зависят от разрешения экрана.
+ */
+export const PAGE_WIDTH = 912 * UI_SCALE;
+export const PAGE_FONT_SIZE = 18 * UI_SCALE;
 export const PAGE_LINE_HEIGHT = PAGE_FONT_SIZE * 1.75;
 export const LINES_PER_PAGE = 27;
 

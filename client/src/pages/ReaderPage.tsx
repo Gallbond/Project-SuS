@@ -7,7 +7,7 @@ import { ReaderSettings } from '../components/ReaderSettings';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { WordCard } from '../components/WordCard';
 import { api, type ReadingState, type TextDoc } from '../lib/api';
-import { paginate, renderPage, type Page } from '../lib/markdown';
+import { UI_SCALE, paginate, renderPage, type Page } from '../lib/markdown';
 import { useSettings } from '../lib/settings';
 
 export function ReaderPage() {
@@ -241,7 +241,7 @@ export function ReaderPage() {
       </header>
 
       <main className="reader__main" ref={mainRef}>
-        <article className="reader__article" style={{ fontSize: `${settings.fontSize}px` }}>
+        <article className="reader__article" style={{ fontSize: `${settings.fontSize * UI_SCALE}px` }}>
           {ready ? (
             <Markdown
               html={html}
