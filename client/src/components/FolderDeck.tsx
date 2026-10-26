@@ -51,8 +51,8 @@ export function FolderDeck({
 
   // Колода компактная: карты лежат стопкой с небольшим сдвигом,
   // чтобы читались края, а не разъехавшийся веер.
-  const stepX = count <= 2 ? 34 : count === 3 ? 24 : 16;
-  const stepA = count <= 2 ? 8 : count === 3 ? 5 : 3.5;
+  const stepX = count <= 2 ? 46 : count === 3 ? 30 : 18;
+  const stepA = count <= 2 ? 7 : count === 3 ? 5 : 4;
 
   return (
     <article
@@ -111,11 +111,8 @@ export function FolderDeck({
                 }
               }}
             >
-              {text.cover ? (
-                <img src={text.cover} alt="" loading="lazy" />
-              ) : (
-                <span className="folder__card-name">{text.title}</span>
-              )}
+              {text.cover ? <img src={text.cover} alt="" loading="lazy" /> : null}
+              <span className="folder__card-title">{text.title}</span>
               <button
                 type="button"
                 className="folder__card-remove"

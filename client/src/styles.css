@@ -373,17 +373,17 @@ code {
   flex: none;
 }
 
+/* Обложка всегда книжная: 2:3 от высоты карточки (240 × --tile-text минус отступы). */
 .card__cover {
   display: grid;
   place-items: center;
   flex: none;
   align-self: stretch;
-  width: calc(132px * var(--tile-scale));
-  min-height: calc(173.8px * var(--tile-scale));
+  width: calc((240px * var(--tile-text) - 35.2px * var(--tile-scale)) * 2 / 3);
   padding: 0;
   overflow: hidden;
   border: 1.1px solid var(--border);
-  border-radius: 11px;
+  border-radius: 7px 11px 11px 7px;
   background: var(--surface-2);
   color: var(--accent);
   font-size: calc(37.4px * var(--tile-scale));
@@ -572,15 +572,16 @@ code {
 
 .folder {
   position: relative;
-  width: 260px;
+  width: 300px;
 }
 
 .folder__deck {
   position: relative;
-  height: 176px;
+  height: 310px;
 }
 
-/* Карты лежат веером: сдвиг и наклон каждой задаёт компонент через --shift. */
+/* Карты лежат веером: сдвиг и наклон каждой задаёт компонент через --shift.
+   Формат — книжная обложка 2:3 (160 × 240). */
 .folder__card {
   position: absolute;
   left: 50%;
@@ -588,14 +589,14 @@ code {
   z-index: calc(var(--i) + 1);
   display: grid;
   place-items: center;
-  width: 150px;
-  height: 104px;
-  margin-left: -75px;
+  width: 160px;
+  height: 240px;
+  margin-left: -80px;
   padding: 0;
   overflow: hidden;
   border: 1.1px solid var(--border-strong);
-  border-radius: 11px;
-  background: var(--surface);
+  border-radius: 9px 13px 13px 9px;
+  background: linear-gradient(160deg, var(--surface-3), var(--surface));
   box-shadow: 0 6.6px 17.6px rgba(0, 0, 0, 0.28);
   color: var(--text);
   cursor: pointer;
@@ -614,15 +615,28 @@ code {
   object-fit: cover;
 }
 
-.folder__card-name {
+/* Название на обложке: затемнение снизу, как на настоящей книге. */
+.folder__card-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: -webkit-box;
-  padding: 9.9px;
+  padding: 42px 10px 10px;
   overflow: hidden;
-  font-size: 12.1px;
-  line-height: 1.4;
-  text-align: center;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.6) 45%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-align: left;
+  pointer-events: none;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 
 /* Веер раскрывается, когда курсор над папкой. */
@@ -634,8 +648,8 @@ code {
 /* Карта под курсором достаётся из колоды; по горизонтали она переключается. */
 .folder .folder__card--active {
   z-index: 100;
-  transform: translateX(calc(var(--shift) * var(--spread-x) * 1.25)) translateY(-54px)
-    rotate(0deg) scale(1.06);
+  transform: translateX(calc(var(--shift) * var(--spread-x) * 1.25)) translateY(-56px)
+    rotate(0deg) scale(1.05);
   border-color: var(--accent);
   box-shadow: 0 24.2px 48.4px rgba(0, 0, 0, 0.45);
 }
@@ -682,11 +696,11 @@ code {
   bottom: 0;
   display: grid;
   place-items: center;
-  width: 150px;
-  height: 104px;
-  margin-left: -75px;
+  width: 160px;
+  height: 240px;
+  margin-left: -80px;
   border: 1.1px dashed var(--border-strong);
-  border-radius: 11px;
+  border-radius: 9px 13px 13px 9px;
   color: var(--muted);
   font-size: 12.1px;
 }
@@ -694,7 +708,7 @@ code {
 .folder__more {
   position: absolute;
   top: 0;
-  right: 0;
+  right: calc(50% - 90px);
   z-index: 80;
   padding: 1.1px 6.6px;
   border-radius: 999px;
