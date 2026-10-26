@@ -23,8 +23,8 @@ export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
 export const MIN_FONT_SIZE = 10;
 export const MAX_FONT_SIZE = 32;
 
-/** Варианты «сколько плиток в ряд»; 0 — авто. */
-export const TILES_PER_ROW = [0, 2, 3, 4, 5] as const;
+/** Варианты «сколько плиток в ряд»; 0 — авто, 1 — список с маленькой обложкой. */
+export const TILES_PER_ROW = [0, 1, 2, 3] as const;
 
 export const MIN_TILES_SCALE = 0.7;
 export const MAX_TILES_SCALE = 1.5;

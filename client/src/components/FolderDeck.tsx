@@ -4,6 +4,9 @@ import type { Folder, TextMeta } from '../lib/api';
 /** Сколько карт рисуем в веере; остальные видны по счётчику в подписи папки. */
 const MAX_CARDS = 8;
 
+/** Больше этого числа текстов в папку не положить. */
+export const MAX_FOLDER_TEXTS = 8;
+
 interface FolderDeckProps {
   folder: Folder;
   texts: TextMeta[];
@@ -15,6 +18,8 @@ interface FolderDeckProps {
   /** Карту достали из колоды и повезли — например, обратно в список текстов. */
   onCardDragStart: (textId: string) => void;
   onCardDragEnd: () => void;
+  /** Папка отказалась принимать текст (переполнена) — короткая «отмашка». */
+  rejecting?: boolean;
 }
 
 /**
@@ -31,6 +36,7 @@ export function FolderDeck({
   onDropText,
   onCardDragStart,
   onCardDragEnd,
+  rejecting = false,
 }: FolderDeckProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [active, setActive] = useState<number | null>(null);
@@ -82,7 +88,7 @@ export function FolderDeck({
 
   return (
     <article
-      className={`folder${over ? ' folder--over' : ''}`}
+      className={`folder${over ? ' folder--over' : ''}${rejecting ? ' folder--reject' : ''}`}
       ref={rootRef}
       onDragOver={(event) => {
         if (!event.dataTransfer.types.includes('text/plain')) return;

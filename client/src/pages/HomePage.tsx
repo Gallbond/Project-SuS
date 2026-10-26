@@ -6,7 +6,7 @@ import { SORT_MODES, useSettings } from '../lib/settings';
 import { AddTextDialog } from '../components/AddTextDialog';
 import { Dialog } from '../components/Dialog';
 import { DictionaryDrawer } from '../components/DictionaryDrawer';
-import { FolderDeck } from '../components/FolderDeck';
+import { FolderDeck, MAX_FOLDER_TEXTS } from '../components/FolderDeck';
 import { HomeViewSettings } from '../components/HomeViewSettings';
 import { StarIcon } from '../components/Icons';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -65,6 +65,12 @@ export function HomePage() {
   const [overId, setOverId] = useState<string | null>(null);
   /** Текст, который тащат из папки обратно в список. */
   const [folderDrag, setFolderDrag] = useState<string | null>(null);
+  /** Текст, которого не взяла переполненная папка: короткая анимация возврата. */
+  const [returnedId, setReturnedId] = useState<string | null>(null);
+  const [rejectFolderId, setRejectFolderId] = useState<string | null>(null);
+  const rejectTimer = useRef(0);
+  /** Пасхалка: 67 кликов по логотипу. */
+  const logoClicks = useRef(0);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   /** Сколько колонок реально влезает; 0 — авто по ширине окна. */
@@ -233,6 +239,40 @@ export function HomePage() {
     persistFolders(next);
   };
 
+  /** В папке уже максимум текстов? */
+  const isFolderFull = (folder: Folder): boolean => folder.textIds.length >= MAX_FOLDER_TEXTS;
+
+  /** Папка не взяла текст: карточка «возвращается» на место, папка коротко дёргается. */
+  const rejectDrop = (folderId: string, textId: string) => {
+    setReturnedId(textId);
+    setRejectFolderId(folderId);
+    window.clearTimeout(rejectTimer.current);
+    rejectTimer.current = window.setTimeout(() => {
+      setReturnedId(null);
+      setRejectFolderId(null);
+    }, 700);
+  };
+
+  const tryDropToFolder = (folder: Folder, textId: string) => {
+    const already = folder.textIds.includes(textId);
+    if (!already && isFolderFull(folder)) {
+      rejectDrop(folder.id, textId);
+      return;
+    }
+    assignText(textId, folder.id);
+    setDragId(null);
+    setOverId(null);
+    setFolderDrag(null);
+  };
+
+  /** Пасхалка: 67 кликов по логотипу открывают картинку во весь экран. */
+  const handleLogoClick = () => {
+    logoClicks.current += 1;
+    if (logoClicks.current < 67) return;
+    logoClicks.current = 0;
+    setLightbox('/totya.png');
+  };
+
   const createFolder = (name: string, textId?: string) => {
     const base = textId ? withoutText(folders ?? [], textId) : (folders ?? []);
     const folder: Folder = {
@@ -301,7 +341,9 @@ export function HomePage() {
     <div className="page">
       <header className="topbar">
         <div className="brand">
-          <span className="brand__mark">S</span>
+          <span className="brand__mark" onClick={handleLogoClick} title="Project Sus">
+            S
+          </span>
           <div>
             <h1 className="brand__name">Project Sus</h1>
             <p className="brand__tag">Чтение с переводом по клику</p>
@@ -401,14 +443,10 @@ export function HomePage() {
                 onOpen={openText}
                 onRename={() => setFolderDialog({ mode: 'rename', folder })}
                 onDelete={() => deleteFolder(folder.id)}
-                onDropText={(textId) => {
-                  assignText(textId, folder.id);
-                  setDragId(null);
-                  setOverId(null);
-                  setFolderDrag(null);
-                }}
+                onDropText={(textId) => tryDropToFolder(folder, textId)}
                 onCardDragStart={(textId) => setFolderDrag(textId)}
                 onCardDragEnd={() => setFolderDrag(null)}
+                rejecting={rejectFolderId === folder.id}
               />
             ))}
           </section>
@@ -416,7 +454,7 @@ export function HomePage() {
 
         <div
           ref={gridRef}
-          className={`grid${folderDrag ? ' grid--drop' : ''}`}
+          className={`grid${folderDrag ? ' grid--drop' : ''}${columns === 1 ? ' grid--list' : ''}`}
           style={
             {
               '--tile-scale': String(settings.tilesScale),
@@ -444,6 +482,7 @@ export function HomePage() {
                 menuId === text.id ? 'card--menu-open' : '',
                 dragId === text.id ? 'card--dragging' : '',
                 overId === text.id ? 'card--drop' : '',
+                returnedId === text.id ? 'card--returned' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -524,18 +563,23 @@ export function HomePage() {
                       {(folders ?? []).length === 0 ? (
                         <span className="menu__note">Папок ещё нет</span>
                       ) : (
-                        (folders ?? []).map((folder) => (
-                          <button
-                            key={folder.id}
-                            type="button"
-                            onClick={() => {
-                              assignText(text.id, folder.id);
-                              closeMenu();
-                            }}
-                          >
-                            {folder.name}
-                          </button>
-                        ))
+                        (folders ?? []).map((folder) => {
+                          const full = isFolderFull(folder) && !folder.textIds.includes(text.id);
+                          return (
+                            <button
+                              key={folder.id}
+                              type="button"
+                              disabled={full}
+                              title={full ? `В папке уже ${MAX_FOLDER_TEXTS} текстов` : folder.name}
+                              onClick={() => {
+                                assignText(text.id, folder.id);
+                                closeMenu();
+                              }}
+                            >
+                              {folder.name}
+                            </button>
+                          );
+                        })
                       )}
                       <button
                         type="button"
