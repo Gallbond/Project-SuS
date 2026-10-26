@@ -6,6 +6,10 @@ export interface Settings {
   theme: Theme;
   fontSize: number;
   rate: number;
+  /** Сколько плиток на главной в ряд; 0 — авто по ширине окна. */
+  tilesPerRow: number;
+  /** Размер плиток на главной: 1 — обычный, 0.7 — мелкие, 1.5 — крупные. */
+  tilesScale: number;
 }
 
 /** Допустимые скорости озвучки. */
@@ -14,10 +18,19 @@ export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
 export const MIN_FONT_SIZE = 10;
 export const MAX_FONT_SIZE = 32;
 
+/** Варианты «сколько плиток в ряд»; 0 — авто. */
+export const TILES_PER_ROW = [0, 2, 3, 4, 5, 6] as const;
+
+export const MIN_TILES_SCALE = 0.7;
+export const MAX_TILES_SCALE = 1.5;
+export const TILES_SCALE_STEP = 0.1;
+
 export const DEFAULTS: Settings = {
   theme: 'dark',
   fontSize: 18,
   rate: 0.75,
+  tilesPerRow: 0,
+  tilesScale: 1,
 };
 
 const STORAGE_KEY = 'project-sus:settings';
@@ -46,6 +59,19 @@ function nearestSpeed(value: number): number {
   );
 }
 
+function clampTilesScale(value: unknown): number {
+  const scale = Number(value);
+  if (!Number.isFinite(scale)) return DEFAULTS.tilesScale;
+  const clamped = Math.min(MAX_TILES_SCALE, Math.max(MIN_TILES_SCALE, scale));
+  // Округление, чтобы после «+» не появлялось 1.0000000000000002.
+  return Math.round(clamped * 10) / 10;
+}
+
+function normalizeTilesPerRow(value: unknown): number {
+  const variant = value as (typeof TILES_PER_ROW)[number];
+  return TILES_PER_ROW.includes(variant) ? variant : DEFAULTS.tilesPerRow;
+}
+
 function readSettings(): Settings {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -58,6 +84,8 @@ function readSettings(): Settings {
       ...parsed,
       fontSize,
       rate: nearestSpeed(typeof parsed.rate === 'number' ? parsed.rate : DEFAULTS.rate),
+      tilesPerRow: normalizeTilesPerRow(parsed.tilesPerRow),
+      tilesScale: clampTilesScale(parsed.tilesScale),
     };
   } catch {
     return DEFAULTS;

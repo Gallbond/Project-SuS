@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type TextMeta } from '../lib/api';
 import { fileToCoverDataUrl } from '../lib/image';
+import { useSettings } from '../lib/settings';
 import { AddTextDialog } from '../components/AddTextDialog';
 import { Dialog } from '../components/Dialog';
 import { DictionaryDrawer } from '../components/DictionaryDrawer';
+import { HomeViewSettings } from '../components/HomeViewSettings';
 import { StarIcon } from '../components/Icons';
 import { ThemeToggle } from '../components/ThemeToggle';
 
@@ -44,6 +46,35 @@ export function HomePage() {
   const [coverTarget, setCoverTarget] = useState<TextMeta | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  /** Сколько колонок реально влезает; 0 — авто по ширине окна. */
+  const [columns, setColumns] = useState(0);
+  const { settings } = useSettings();
+
+  // Выбранное «плиток в ряд» — верхняя граница: если окно уже, колонок станет
+  // меньше, чтобы карточки не сжимались в кашу.
+  useEffect(() => {
+    if (!settings.tilesPerRow) {
+      setColumns(0);
+      return;
+    }
+
+    const element = gridRef.current;
+    if (!element) return;
+
+    const update = () => {
+      const gap = Number.parseFloat(getComputedStyle(element).columnGap) || 0;
+      // Обложка + отступы + минимум места под текст.
+      const minCard = 182 * settings.tilesScale + 100;
+      const fit = Math.max(1, Math.floor((element.clientWidth + gap) / (minCard + gap)));
+      setColumns(Math.min(settings.tilesPerRow, fit));
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [settings.tilesPerRow, settings.tilesScale]);
 
   // Новую обложку можно поставить только из меню «⋯» на карточке.
   const pickCover = (text: TextMeta) => {
@@ -167,21 +198,24 @@ export function HomePage() {
           <span className="toolbar__count">
             {texts === null ? 'Загружаю…' : `${visible.length} ${pluralTexts(visible.length)}`}
           </span>
-          <div className="segmented">
-            <button
-              type="button"
-              className={sort === 'date' ? 'is-active' : ''}
-              onClick={() => setSort('date')}
-            >
-              Сначала новые
-            </button>
-            <button
-              type="button"
-              className={sort === 'title' ? 'is-active' : ''}
-              onClick={() => setSort('title')}
-            >
-              А–Я
-            </button>
+          <div className="toolbar__right">
+            <div className="segmented">
+              <button
+                type="button"
+                className={sort === 'date' ? 'is-active' : ''}
+                onClick={() => setSort('date')}
+              >
+                Сначала новые
+              </button>
+              <button
+                type="button"
+                className={sort === 'title' ? 'is-active' : ''}
+                onClick={() => setSort('title')}
+              >
+                А–Я
+              </button>
+            </div>
+            <HomeViewSettings effectiveColumns={columns} />
           </div>
         </div>
 
@@ -215,7 +249,16 @@ export function HomePage() {
           </div>
         ) : null}
 
-        <div className="grid">
+        <div
+          ref={gridRef}
+          className="grid"
+          style={
+            {
+              '--tile-scale': String(settings.tilesScale),
+              gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined,
+            } as CSSProperties
+          }
+        >
           {visible.map((text) => (
             <article className={`card${menuId === text.id ? ' card--menu-open' : ''}`} key={text.id}>
               <CardCover text={text} onOpen={setLightbox} />

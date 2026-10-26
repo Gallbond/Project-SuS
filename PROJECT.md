@@ -42,7 +42,7 @@ Project Sus/
 ├─ client/                    React + Vite
 │  ├─ src/pages/              HomePage, ReaderPage
 │  ├─ src/components/         Markdown, WordCard, DictionaryDrawer, AddTextDialog,
-│  │                          Dialog, Icons, ThemeToggle, ReaderSettings
+│  │                          Dialog, Icons, ThemeToggle, ReaderSettings, HomeViewSettings
 │  ├─ src/lib/                api, markdown (пагинация), highlights, settings, tts, image
 │  └─ src/styles.css          все стили и обе темы
 ├─ server/                    Express
@@ -272,6 +272,7 @@ favorite: true
 - Скорости: 0.5 / 0.75 / 1 / 1.25 / 1.5 (по умолчанию 0.75).
 - Шрифт: 10–32 (по умолчанию 18) — в единицах макета; в пикселях ×1,1, потому что интерфейс в масштабе 110%.
 - Тема: тёмная (по умолчанию) / светлая, хранится в `localStorage` (`project-sus:settings`, версия 2).
+- Главная, панель «Вид»: плиток в ряд — авто или 2–6 (`tilesPerRow`), размер плиток — 70–150% шагом 10% (`tilesScale`). Геометрия карточки масштабируется целиком, текст — мягче (70–115%, `--tile-text`), чтобы на минимуме оставался читаемым. На окне ≤ 720 px всегда одна колонка.
 
 ---
 
