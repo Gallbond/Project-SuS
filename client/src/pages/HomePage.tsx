@@ -493,6 +493,10 @@ export function HomePage() {
             setFolderDrag(null);
           }}
         >
+          {folderDrag && visible.length === 0 ? (
+            <p className="grid__hint">Отпусти здесь, чтобы вернуть текст в список</p>
+          ) : null}
+
           {visible.map((text) => (
             <article
               className={[

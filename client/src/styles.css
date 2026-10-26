@@ -356,12 +356,24 @@ code {
   gap: 17.6px;
 }
 
-/* Сюда можно бросить карту из папки — она вернётся в список текстов. */
+/* Сюда можно бросить карту из папки — она вернётся в список текстов.
+   Зона специально большая: даже если в списке пусто или всего один ряд,
+   навести и отпустить легко. */
 .grid--drop {
-  min-height: 140px;
+  align-content: start;
+  min-height: max(352px, 42vh);
   outline: 2.2px dashed var(--accent);
   outline-offset: 8.8px;
   border-radius: var(--radius);
+}
+
+.grid__hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 26.4px;
+  color: var(--muted);
+  font-size: 13.2px;
+  text-align: center;
 }
 
 .card {
