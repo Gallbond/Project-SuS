@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Folder, TextMeta } from '../lib/api';
 
-/** Сколько карт рисуем в веере; остальные показываем счётчиком «+N». */
+/** Сколько карт рисуем в веере; остальные видны по счётчику в подписи папки. */
 const MAX_CARDS = 5;
 
 interface FolderDeckProps {
@@ -10,15 +10,17 @@ interface FolderDeckProps {
   onOpen: (id: string) => void;
   onRename: () => void;
   onDelete: () => void;
-  onRemoveText: (textId: string) => void;
   /** Бросок карточки текста на папку. */
   onDropText: (textId: string) => void;
+  /** Карту достали из колоды и повезли — например, обратно в список текстов. */
+  onCardDragStart: (textId: string) => void;
+  onCardDragEnd: () => void;
 }
 
 /**
- * Папка как колода карт веером. Курсор движется по горизонтали — активной
- * становится карта под курсором, она и «достаётся» из колоды. Ушёл курсор —
- * всё возвращается на место.
+ * Папка как колода карт веером. Курсор движется по горизонтали — карта под
+ * курсором «достаётся» из колоды, ушёл курсор — всё возвращается. Карту можно
+ * утащить из папки и бросить в список текстов.
  */
 export function FolderDeck({
   folder,
@@ -26,11 +28,13 @@ export function FolderDeck({
   onOpen,
   onRename,
   onDelete,
-  onRemoveText,
   onDropText,
+  onCardDragStart,
+  onCardDragEnd,
 }: FolderDeckProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [active, setActive] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
 
@@ -97,19 +101,7 @@ export function FolderDeck({
     >
       <div
         className={`folder__deck${over ? ' folder__deck--over' : ''}${count ? '' : ' folder__deck--empty'}`}
-        onMouseMove={(event) => {
-          const target = event.target as HTMLElement;
-          // Курсор на самом крестике — не переключаем.
-          if (target.closest('.folder__card-remove')) return;
-
-          // Верхняя часть колоды — «зона крестика»: там карты не меняются,
-          // иначе кнопка убегает от курсора. Ниже переключение работает,
-          // в том числе при движении по диагонали вниз.
-          const rect = event.currentTarget.getBoundingClientRect();
-          if (event.clientY - rect.top < rect.height * 0.45) return;
-
-          pickActive(event.currentTarget, event.clientX);
-        }}
+        onMouseMove={(event) => pickActive(event.currentTarget, event.clientX)}
         onMouseLeave={() => setActive(null)}
       >
         {count === 0 ? (
@@ -118,7 +110,13 @@ export function FolderDeck({
           cards.map((text, index) => (
             <div
               key={text.id}
-              className={`folder__card${index === active ? ' folder__card--active' : ''}`}
+              className={[
+                'folder__card',
+                index === active ? 'folder__card--active' : '',
+                dragging === text.id ? 'folder__card--dragging' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
               style={
                 {
                   '--i': index,
@@ -132,7 +130,18 @@ export function FolderDeck({
               }
               role="button"
               tabIndex={0}
-              title={text.title}
+              draggable
+              title={`${text.title} — перетащи в список, чтобы убрать из папки`}
+              onDragStart={(event) => {
+                setDragging(text.id);
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', text.id);
+                onCardDragStart(text.id);
+              }}
+              onDragEnd={() => {
+                setDragging(null);
+                onCardDragEnd();
+              }}
               onClick={() => onOpen(text.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -144,18 +153,6 @@ export function FolderDeck({
               <span className="folder__card-title">
                 <span className="folder__card-title-text">{text.title}</span>
               </span>
-              <button
-                type="button"
-                className="folder__card-remove"
-                aria-label={`Убрать «${text.title}» из папки`}
-                title="Убрать из папки"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRemoveText(text.id);
-                }}
-              >
-                ×
-              </button>
             </div>
           ))
         )}

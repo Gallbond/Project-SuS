@@ -354,6 +354,14 @@ code {
   gap: 17.6px;
 }
 
+/* Сюда можно бросить карту из папки — она вернётся в список текстов. */
+.grid--drop {
+  min-height: 140px;
+  outline: 2.2px dashed var(--accent);
+  outline-offset: 8.8px;
+  border-radius: var(--radius);
+}
+
 .card {
   position: relative;
   z-index: 1;
@@ -602,7 +610,7 @@ code {
   background-size: cover;
   box-shadow: 0 6.6px 17.6px rgba(0, 0, 0, 0.28);
   color: var(--text);
-  cursor: pointer;
+  cursor: grab;
   transform: translateX(-50%) translateX(calc(var(--shift) * var(--spread-x)))
     rotate(calc(var(--shift) * var(--spread-a)));
   transition:
@@ -657,6 +665,12 @@ code {
   box-shadow: 0 24.2px 48.4px rgba(0, 0, 0, 0.45);
 }
 
+/* Карту тащат из папки обратно в список текстов. */
+.folder__card--dragging {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+
 /* Сюда можно бросить карточку текста. */
 .folder__deck--over::after {
   content: '';
@@ -666,31 +680,6 @@ code {
   border-radius: 13.2px;
   background: var(--accent-soft);
   pointer-events: none;
-}
-
-.folder__card-remove {
-  position: absolute;
-  top: 5.5px;
-  right: 5.5px;
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  width: 26.4px;
-  height: 26.4px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 16.5px;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity 140ms ease;
-}
-
-.folder__card:hover .folder__card-remove,
-.folder__card-remove:focus-visible {
-  opacity: 1;
 }
 
 .folder__empty {

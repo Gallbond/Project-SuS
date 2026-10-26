@@ -63,6 +63,8 @@ export function HomePage() {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  /** Текст, который тащат из папки обратно в список. */
+  const [folderDrag, setFolderDrag] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   /** Сколько колонок реально влезает; 0 — авто по ширине окна. */
@@ -399,12 +401,14 @@ export function HomePage() {
                 onOpen={openText}
                 onRename={() => setFolderDialog({ mode: 'rename', folder })}
                 onDelete={() => deleteFolder(folder.id)}
-                onRemoveText={(textId) => assignText(textId, null)}
                 onDropText={(textId) => {
                   assignText(textId, folder.id);
                   setDragId(null);
                   setOverId(null);
+                  setFolderDrag(null);
                 }}
+                onCardDragStart={(textId) => setFolderDrag(textId)}
+                onCardDragEnd={() => setFolderDrag(null)}
               />
             ))}
           </section>
@@ -412,13 +416,25 @@ export function HomePage() {
 
         <div
           ref={gridRef}
-          className="grid"
+          className={`grid${folderDrag ? ' grid--drop' : ''}`}
           style={
             {
               '--tile-scale': String(settings.tilesScale),
               gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined,
             } as CSSProperties
           }
+          onDragOver={(event) => {
+            // Сюда возвращаем текст из папки: бросил на список — он снова в списке.
+            if (!folderDrag) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(event) => {
+            if (!folderDrag) return;
+            event.preventDefault();
+            assignText(folderDrag, null);
+            setFolderDrag(null);
+          }}
         >
           {visible.map((text) => (
             <article
