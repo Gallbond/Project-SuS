@@ -62,18 +62,39 @@ export function paginate(text: string, layout: PageLayout = DEFAULT_LAYOUT): Pag
         continue;
       }
 
-      // Не влезает: режем абзац по реальной высоте строки.
       const remaining = pageHeight - used;
-      const split = isParagraph(item.block) && remaining > PAGE_LINE_HEIGHT ? splitByHeight(item.block, remaining) : null;
 
-      if (split) {
-        queue.shift();
-        queue.unshift({ block: split.tail, height: measureHeight(split.tail) });
-        pageTokens.push(...split.head);
-        const words = countWords(split.head);
-        pageWords += words;
-        consumed += words;
-        break;
+      // Абзац не влезает целиком: режем по концу предложения, чтобы страница
+      // не обрывалась посреди фразы.
+      if (isParagraph(item.block) && remaining > PAGE_LINE_HEIGHT) {
+        const split = splitAtSentence(item.block, remaining);
+
+        if (split) {
+          queue.shift();
+          queue.unshift({ block: split.tail, height: measureHeight(split.tail) });
+          pageTokens.push(...split.head);
+          const words = countWords(split.head);
+          pageWords += words;
+          consumed += words;
+          break;
+        }
+
+        // Ни одна фраза не влезла: на непустой странице переносим абзац
+        // целиком — пустой низ страницы лучше разорванной фразы.
+        if (pageTokens.length > 0) break;
+
+        // Страница пуста, значит абзац (или одна фраза) сам длиннее страницы —
+        // режем по слову, иначе текст никуда не денется.
+        const byWord = splitByHeight(item.block, remaining);
+        if (byWord) {
+          queue.shift();
+          queue.unshift({ block: byWord.tail, height: measureHeight(byWord.tail) });
+          pageTokens.push(...byWord.head);
+          const words = countWords(byWord.head);
+          pageWords += words;
+          consumed += words;
+          break;
+        }
       }
 
       // Блок больше страницы и не режется — оставляем как есть (прокрутится).
@@ -174,6 +195,108 @@ function measureHeight(block: Token[]): number {
     return height;
   } catch {
     return 0;
+  }
+}
+
+/** Сокращения, после которых точка не заканчивает предложение. */
+const ABBREVIATIONS = new Set([
+  'np', 'itd', 'itp', 'tj', 'tzn', 'tzw', 'prof', 'dr', 'hab', 'mgr', 'inż',
+  'arch', 'lek', 'płk', 'gen', 'ks', 'bp', 'św', 'ul', 'al', 'pl', 'os', 'nr',
+  'str', 'godz', 'tys', 'mln', 'mld', 'min', 'maks', 'ok', 'por', 'zob', 'm.in',
+  'p.n.e', 'n.e', 'т.д', 'т.п', 'т.е', 'г', 'стр', 'см', 'рис', 'др',
+]);
+
+/** Конец предложения: точка, !, ?, многоточие — возможно, с закрывающей кавычкой. */
+const SENTENCE_END_RE = /[.!?…]+[»”"'’”)\]]*(?=\s|$)/gu;
+
+/**
+ * Позиции концов предложений в тексте абзаца.
+ * Без них страница рвалась бы посреди фразы, на любом слове.
+ */
+export function sentenceEnds(content: string): number[] {
+  const offsets: number[] = [];
+
+  for (const match of content.matchAll(SENTENCE_END_RE)) {
+    const index = match.index ?? 0;
+    const token = (content.slice(0, index).match(/[\p{L}\p{M}\d.]+$/u)?.[0] ?? '')
+      .toLowerCase()
+      .replace(/\.+$/, '');
+
+    // Точка после сокращения («np.») или инициала («J.») фразу не кончает.
+    if (token && (ABBREVIATIONS.has(token) || /^[\p{L}\p{M}]$/u.test(token))) continue;
+    // Маркер списка «1.» — тоже не конец фразы.
+    if (/^\d+$/.test(token)) continue;
+
+    offsets.push(index + match[0].length);
+  }
+
+  return offsets;
+}
+
+/** Режет абзац по последнему предложению, которое влезает в оставшееся место. */
+function splitAtSentence(block: Token[], height: number): { head: Token[]; tail: Token[] } | null {
+  const inline = block.find((token) => token.type === 'inline');
+  if (!inline) return null;
+
+  const content = inline.content;
+  if (/[*_`[\]<>]/.test(content)) return null; // с разметкой не рискуем
+
+  const offsets = sentenceEnds(content);
+  if (!offsets.length) return null;
+
+  const cut = sentenceCutOffset(content, offsets, height);
+  if (cut <= 0 || cut >= content.length) return null;
+
+  const head = content.slice(0, cut);
+  const tail = content.slice(cut).trimStart();
+  if (!head.trim() || !tail) return null;
+
+  return {
+    head: rebuildBlock(block, head),
+    tail: rebuildBlock(block, tail),
+  };
+}
+
+/** Ищет самый дальний конец предложения, который помещается в height. */
+function sentenceCutOffset(content: string, offsets: number[], height: number): number {
+  try {
+    const probe = document.createElement('div');
+    probe.style.cssText = measureStyle();
+    probe.textContent = content;
+    document.body.appendChild(probe);
+
+    const node = probe.firstChild;
+    if (!node || node.nodeType !== Node.TEXT_NODE) {
+      probe.remove();
+      return -1;
+    }
+
+    const top = probe.getBoundingClientRect().top;
+    const heightAt = (offset: number): number => {
+      const range = document.createRange();
+      range.setStart(node, 0);
+      range.setEnd(node, offset);
+      return range.getBoundingClientRect().bottom - top;
+    };
+
+    let low = 0;
+    let high = offsets.length - 1;
+    let best = -1;
+
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (heightAt(offsets[mid]) <= height + 0.5) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    probe.remove();
+    return best >= 0 ? offsets[best] : -1;
+  } catch {
+    return -1;
   }
 }
 
