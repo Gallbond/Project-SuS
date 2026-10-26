@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Folder, TextMeta } from '../lib/api';
 
 /** Сколько карт рисуем в веере; остальные видны по счётчику в подписи папки. */
-const MAX_CARDS = 5;
+const MAX_CARDS = 8;
 
 interface FolderDeckProps {
   folder: Folder;
@@ -52,14 +52,16 @@ export function FolderDeck({
   const count = cards.length;
   const middle = (count - 1) / 2;
 
-  // Шаг веера в процентах от ширины папки: карты расходятся настолько,
-  // чтобы у каждой было видно название, и при этом не вылезали за край.
-  const stepX = count <= 2 ? 20 : count === 3 ? 18 : 16;
+  // Шаг веера в процентах от ширины папки. С двумя-тремя картами он шире,
+  // дальше — поджимается, чтобы весь веер влезал в ширину папки.
+  const stepX = count <= 2 ? 20 : count === 3 ? 18 : Math.min(16, 70 / Math.max(1, count - 1));
   const stepA = count <= 2 ? 7 : count === 3 ? 5 : 4;
 
-  // Сброс активной карты, когда состав папки изменился.
+  // Сброс состояния при смене состава папки: если карту утащили (и браузер
+  // не прислал dragend), она не должна остаться полупрозрачной при возврате.
   useEffect(() => {
     setActive(null);
+    setDragging(null);
   }, [count]);
 
   /** Активная карта — верхняя из тех, что накрывают курсор по горизонтали. */
@@ -164,6 +166,11 @@ export function FolderDeck({
             {folder.name}
           </span>
           <span className="folder__count">{texts.length}</span>
+          {texts.length > cards.length ? (
+            <span className="folder__more" title="В веере показаны не все тексты">
+              +{texts.length - cards.length}
+            </span>
+          ) : null}
         </div>
 
         <div className="folder__menu">

@@ -368,7 +368,7 @@ code {
   display: flex;
   gap: calc(15.4px * var(--tile-scale));
   /* Высота одинаковая у всех карточек: ряды не «пляшут». */
-  height: calc(240px * var(--tile-text));
+  height: calc(252px * var(--tile-text));
   padding: calc(17.6px * var(--tile-scale));
   border: 1.1px solid var(--border);
   border-radius: var(--radius);
@@ -381,13 +381,13 @@ code {
   flex: none;
 }
 
-/* Обложка всегда книжная: 2:3 от высоты карточки (240 × --tile-text минус отступы). */
+/* Обложка всегда книжная: 2:3 от высоты карточки (252 × --tile-text минус отступы). */
 .card__cover {
   display: grid;
   place-items: center;
   flex: none;
   align-self: stretch;
-  width: calc((240px * var(--tile-text) - 35.2px * var(--tile-scale)) * 2 / 3);
+  width: calc((252px * var(--tile-text) - 35.2px * var(--tile-scale)) * 2 / 3);
   padding: 0;
   overflow: hidden;
   border: 1.1px solid var(--border);
@@ -522,6 +522,9 @@ code {
   flex: none;
   display: -webkit-box;
   margin: calc(11px * var(--tile-text)) 0 calc(6.6px * var(--tile-text));
+  /* Две строки — и по clamp, и по max-height: если clamp не сработает,
+     высота всё равно не даст тексту вылезти за карточку. */
+  max-height: calc(2.6em);
   overflow: hidden;
   font-size: calc(18.7px * var(--tile-text));
   font-weight: 600;
@@ -533,6 +536,7 @@ code {
 .card__excerpt {
   display: -webkit-box;
   margin: 0 0 calc(15.4px * var(--tile-text));
+  max-height: calc(4.5em);
   overflow: hidden;
   color: var(--muted);
   font-size: calc(14.85px * var(--tile-text));
@@ -724,6 +728,14 @@ code {
 .folder__count {
   color: var(--muted);
   font-size: 12.1px;
+}
+
+.folder__more {
+  padding: 0 5.5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .folder__menu {
