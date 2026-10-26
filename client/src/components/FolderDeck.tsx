@@ -45,14 +45,34 @@ export function FolderDeck({
   }, [menuOpen]);
 
   const cards = texts.slice(0, MAX_CARDS);
-  const hidden = texts.length - cards.length;
   const count = cards.length;
   const middle = (count - 1) / 2;
 
-  // Шаг веера — в процентах от ширины папки: на широком экране карты
-  // расходятся заметно, на узком не вылезают за край.
-  const stepX = count <= 2 ? 12 : count === 3 ? 9 : 7;
+  // Шаг веера в процентах от ширины папки: карты расходятся настолько,
+  // чтобы у каждой было видно название, и при этом не вылезали за край.
+  const stepX = count <= 2 ? 20 : count === 3 ? 18 : 16;
   const stepA = count <= 2 ? 7 : count === 3 ? 5 : 4;
+
+  // Сброс активной карты, когда состав папки изменился.
+  useEffect(() => {
+    setActive(null);
+  }, [count]);
+
+  /** Активная карта — верхняя из тех, что накрывают курсор по горизонтали. */
+  const pickActive = (deck: HTMLDivElement, clientX: number): void => {
+    if (!count) return;
+    const rect = deck.getBoundingClientRect();
+    const stepPx = (stepX / 100) * rect.width;
+    const cardWidth = deck.querySelector<HTMLElement>('.folder__card')?.offsetWidth ?? 0;
+    const offset = clientX - rect.left - rect.width / 2;
+
+    let best = 0;
+    for (let index = 0; index < count; index += 1) {
+      const leftEdge = (index - middle) * stepPx - cardWidth / 2;
+      if (offset >= leftEdge) best = index;
+    }
+    setActive(best);
+  };
 
   return (
     <article
@@ -78,10 +98,10 @@ export function FolderDeck({
       <div
         className={`folder__deck${over ? ' folder__deck--over' : ''}${count ? '' : ' folder__deck--empty'}`}
         onMouseMove={(event) => {
-          if (!count) return;
-          const rect = event.currentTarget.getBoundingClientRect();
-          const ratio = (event.clientX - rect.left) / rect.width;
-          setActive(Math.min(count - 1, Math.max(0, Math.floor(ratio * count))));
+          // Наведение на крестик не должно переключать карты: иначе кнопка
+          // «убегает» вместе с соседней картой.
+          if ((event.target as HTMLElement).closest('.folder__card-remove')) return;
+          pickActive(event.currentTarget, event.clientX);
         }}
         onMouseLeave={() => setActive(null)}
       >
@@ -130,8 +150,6 @@ export function FolderDeck({
             </div>
           ))
         )}
-
-        {hidden > 0 ? <span className="folder__more">+{hidden}</span> : null}
       </div>
 
       <div className="folder__foot">
