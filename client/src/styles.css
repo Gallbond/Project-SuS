@@ -411,11 +411,11 @@ code {
   object-fit: cover;
 }
 
-/* «Подлетает» при наведении */
+/* «Подлетает» при наведении. z-index не поднимаем: иначе тень обложки
+   ложится поверх текста карточки. */
 .card__cover:hover:not(:disabled) {
-  z-index: 3;
   border-color: var(--border-strong);
-  box-shadow: 0 13.2px 28.6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8.8px 17.6px rgba(0, 0, 0, 0.35);
   transform: translateY(-3.3px) scale(1.03);
 }
 
@@ -498,7 +498,8 @@ code {
 .card:hover {
   border-color: var(--border-strong);
   transform: translateY(-2.2px);
-  box-shadow: var(--shadow);
+  /* Тень плотнее, чем --shadow: она не должна залезать на соседние карточки. */
+  box-shadow: 0 13.2px 26.4px rgba(0, 0, 0, 0.4);
 }
 
 .card--menu-open {
@@ -522,6 +523,10 @@ code {
 }
 
 .card__main {
+  /* Текст всегда выше теней обложки и соседних карточек: раньше они ложились
+     на текст полупрозрачным слоем. */
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -666,12 +671,15 @@ code {
   position: absolute;
   top: calc(11px * var(--tile-scale));
   right: calc(11px * var(--tile-scale));
+  /* Выше текста (.card__main z-index: 1), иначе кнопку не нажать. */
+  z-index: 2;
 }
 
 .card__fav {
   position: absolute;
   top: calc(11px * var(--tile-scale));
   right: calc(48.4px * var(--tile-scale));
+  z-index: 2;
   color: var(--muted);
 }
 
