@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type TextMeta } from '../lib/api';
+import { api, type Folder, type TextMeta } from '../lib/api';
 import { fileToCoverDataUrl } from '../lib/image';
-import { useSettings } from '../lib/settings';
+import { SORT_MODES, useSettings } from '../lib/settings';
 import { AddTextDialog } from '../components/AddTextDialog';
 import { Dialog } from '../components/Dialog';
 import { DictionaryDrawer } from '../components/DictionaryDrawer';
+import { FolderDeck } from '../components/FolderDeck';
 import { HomeViewSettings } from '../components/HomeViewSettings';
 import { StarIcon } from '../components/Icons';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -32,27 +33,49 @@ function pluralTexts(count: number): string {
   return 'текстов';
 }
 
+/** Убирает текст из всех папок: так «переезд» в другую папку остаётся простым. */
+function withoutText(folders: Folder[], textId: string): Folder[] {
+  return folders.map((folder) =>
+    folder.textIds.includes(textId)
+      ? { ...folder, textIds: folder.textIds.filter((id) => id !== textId) }
+      : folder,
+  );
+}
+
+type FolderDialogState =
+  | { mode: 'create'; textId?: string }
+  | { mode: 'rename'; folder: Folder };
+
 export function HomePage() {
   const navigate = useNavigate();
   const [texts, setTexts] = useState<TextMeta[] | null>(null);
+  const [folders, setFolders] = useState<Folder[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<'date' | 'title'>('date');
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<TextMeta | null>(null);
   const [deleting, setDeleting] = useState<TextMeta | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [menuStep, setMenuStep] = useState<'main' | 'folders'>('main');
+  const [folderDialog, setFolderDialog] = useState<FolderDialogState | null>(null);
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
   const [coverTarget, setCoverTarget] = useState<TextMeta | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   /** Сколько колонок реально влезает; 0 — авто по ширине окна. */
   const [columns, setColumns] = useState(0);
-  const { settings } = useSettings();
+  const { settings, update } = useSettings();
+
+  const closeMenu = () => {
+    setMenuId(null);
+    setMenuStep('main');
+  };
 
   // Выбранное «плиток в ряд» — верхняя граница: если окно уже, колонок станет
-  // меньше, чтобы карточки не сжимались в кашу.
+  // меньше, и панель «Вид» сама переключится на меньшее число.
   useEffect(() => {
     if (!settings.tilesPerRow) {
       setColumns(0);
@@ -62,16 +85,19 @@ export function HomePage() {
     const element = gridRef.current;
     if (!element) return;
 
-    const update = () => {
+    const recalc = () => {
       const gap = Number.parseFloat(getComputedStyle(element).columnGap) || 0;
       // Обложка + отступы + минимум места под текст.
       const minCard = 182 * settings.tilesScale + 100;
       const fit = Math.max(1, Math.floor((element.clientWidth + gap) / (minCard + gap)));
-      setColumns(Math.min(settings.tilesPerRow, fit));
+      const effective = Math.min(settings.tilesPerRow, fit);
+      setColumns(effective);
+      // Не влезло — запоминаем меньшее число, чтобы панель показывала правду.
+      if (effective < settings.tilesPerRow) update({ tilesPerRow: effective });
     };
 
-    update();
-    const observer = new ResizeObserver(update);
+    recalc();
+    const observer = new ResizeObserver(recalc);
     observer.observe(element);
     return () => observer.disconnect();
   }, [settings.tilesPerRow, settings.tilesScale]);
@@ -115,22 +141,139 @@ export function HomePage() {
       });
   }, []);
 
+  const loadFolders = useCallback(() => {
+    api
+      .listFolders()
+      .then(setFolders)
+      .catch(() => setFolders([]));
+  }, []);
+
   useEffect(() => {
     load();
+    loadFolders();
     document.title = 'Project Sus';
-  }, [load]);
+  }, [load, loadFolders]);
+
+  /** Папки сохраняются списком целиком, поэтому любое изменение — это новый список. */
+  const persistFolders = useCallback(
+    (next: Folder[]) => {
+      setFolders(next);
+      api
+        .saveFolders(next.map((folder, index) => ({ ...folder, order: index })))
+        .then(setFolders)
+        .catch(() => {
+          setError('Не удалось сохранить папки');
+          loadFolders();
+        });
+    },
+    [loadFolders],
+  );
+
+  // Порядок «Свои»: новые тексты встают сверху, дальше — как их подвинули.
+  const orderedIds = useMemo(() => {
+    const ids = (texts ?? []).map((text) => text.id);
+    const known = settings.textsOrder.filter((id) => ids.includes(id));
+    const fresh = ids.filter((id) => !known.includes(id));
+    return [...fresh, ...known];
+  }, [texts, settings.textsOrder]);
+
+  const orderIndex = useMemo(
+    () => new Map(orderedIds.map((id, index) => [id, index])),
+    [orderedIds],
+  );
+
+  const searching = query.trim().length > 0;
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = (texts ?? []).filter((text) => text.title.toLowerCase().includes(needle));
-    return [...list].sort((a, b) => {
-      // Избранные всегда сверху, дальше — выбранная сортировка.
+    const inFolder = new Set((folders ?? []).flatMap((folder) => folder.textIds));
+    // Во время поиска показываем всё найденное, даже если текст лежит в папке.
+    const source = searching ? list : list.filter((text) => !inFolder.has(text.id));
+
+    return [...source].sort((a, b) => {
+      if (settings.sort === 'custom') {
+        return (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0);
+      }
+      // В остальных режимах избранные всегда сверху.
       if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
-      return sort === 'title'
+      return settings.sort === 'title'
         ? a.title.localeCompare(b.title, 'ru')
         : b.createdAt.localeCompare(a.createdAt);
     });
-  }, [texts, query, sort]);
+  }, [texts, query, folders, settings.sort, orderIndex, searching]);
+
+  /** Тексты папок в пользовательском порядке — для веера на главной. */
+  const deckFolders = useMemo(
+    () =>
+      (folders ?? []).map((folder) => ({
+        folder,
+        texts: folder.textIds
+          .map((id) => (texts ?? []).find((text) => text.id === id))
+          .filter((text): text is TextMeta => Boolean(text))
+          .sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0)),
+      })),
+    [folders, texts, orderIndex],
+  );
+
+  const folderOf = useCallback(
+    (textId: string) => (folders ?? []).find((folder) => folder.textIds.includes(textId)) ?? null,
+    [folders],
+  );
+
+  const assignText = (textId: string, folderId: string | null) => {
+    const base = withoutText(folders ?? [], textId);
+    const next = folderId
+      ? base.map((folder) =>
+          folder.id === folderId ? { ...folder, textIds: [...folder.textIds, textId] } : folder,
+        )
+      : base;
+    persistFolders(next);
+  };
+
+  const createFolder = (name: string, textId?: string) => {
+    const base = textId ? withoutText(folders ?? [], textId) : (folders ?? []);
+    const folder: Folder = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      textIds: textId ? [textId] : [],
+      order: base.length,
+    };
+    persistFolders([...base, folder]);
+  };
+
+  const renameFolder = (id: string, name: string) => {
+    persistFolders(
+      (folders ?? []).map((folder) => (folder.id === id ? { ...folder, name: name.trim() } : folder)),
+    );
+  };
+
+  const deleteFolder = (id: string) => {
+    persistFolders((folders ?? []).filter((folder) => folder.id !== id));
+  };
+
+  /** Переставляет карточку на место целевой: остальные сдвигаются сами. */
+  const reorder = (dragged: string, target: string) => {
+    const from = orderedIds.indexOf(dragged);
+    const to = orderedIds.indexOf(target);
+    if (from < 0 || to < 0 || from === to) return;
+
+    const next = [...orderedIds];
+    next.splice(from, 1);
+    next.splice(to, 0, dragged);
+    update({ textsOrder: next });
+  };
+
+  /** Дроп на пустое место: карточка уходит в конец списка. */
+  const moveToEnd = (dragged: string) => {
+    const from = orderedIds.indexOf(dragged);
+    if (from < 0 || from === orderedIds.length - 1) return;
+
+    const next = [...orderedIds];
+    next.splice(from, 1);
+    next.push(dragged);
+    update({ textsOrder: next });
+  };
 
   const openText = (id: string) => navigate(`/text/${encodeURIComponent(id)}`);
 
@@ -158,7 +301,7 @@ export function HomePage() {
     const onDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('.card__menu')) return;
-      setMenuId(null);
+      closeMenu();
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -197,25 +340,32 @@ export function HomePage() {
         <div className="toolbar">
           <span className="toolbar__count">
             {texts === null ? 'Загружаю…' : `${visible.length} ${pluralTexts(visible.length)}`}
+            {settings.sort === 'custom' && visible.length > 1 ? (
+              <span className="toolbar__hint">Перетащи карточку, чтобы поменять порядок</span>
+            ) : null}
           </span>
           <div className="toolbar__right">
             <div className="segmented">
-              <button
-                type="button"
-                className={sort === 'date' ? 'is-active' : ''}
-                onClick={() => setSort('date')}
-              >
-                Сначала новые
-              </button>
-              <button
-                type="button"
-                className={sort === 'title' ? 'is-active' : ''}
-                onClick={() => setSort('title')}
-              >
-                А–Я
-              </button>
+              {SORT_MODES.map((mode) => (
+                <button
+                  key={mode.value}
+                  type="button"
+                  className={settings.sort === mode.value ? 'is-active' : ''}
+                  onClick={() => update({ sort: mode.value })}
+                >
+                  {mode.label}
+                </button>
+              ))}
             </div>
-            <HomeViewSettings effectiveColumns={columns} />
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setFolderDialog({ mode: 'create' })}
+              title="Создать папку для текстов"
+            >
+              + Папка
+            </button>
+            <HomeViewSettings />
           </div>
         </div>
 
@@ -228,25 +378,43 @@ export function HomePage() {
           </div>
         ) : null}
 
-        {!error && texts !== null && visible.length === 0 ? (
-          <div className="state">
-            {query ? (
-              <>
-                <p>По запросу «{query}» ничего нет</p>
-                <button type="button" className="btn btn--ghost" onClick={() => setQuery('')}>
-                  Сбросить поиск
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="state__title">Пока пусто</p>
-                <p>Добавь первый текст — это обычный файл .md</p>
-                <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
-                  + Добавить текст
-                </button>
-              </>
-            )}
-          </div>
+        {!error && texts !== null && visible.length === 0
+          ? searching
+            ? (
+                <div className="state">
+                  <p>По запросу «{query}» ничего нет</p>
+                  <button type="button" className="btn btn--ghost" onClick={() => setQuery('')}>
+                    Сбросить поиск
+                  </button>
+                </div>
+              )
+            : texts.length === 0 && (folders?.length ?? 0) === 0
+              ? (
+                  <div className="state">
+                    <p className="state__title">Пока пусто</p>
+                    <p>Добавь первый текст — это обычный файл .md</p>
+                    <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
+                      + Добавить текст
+                    </button>
+                  </div>
+                )
+              : null
+          : null}
+
+        {!searching && deckFolders.length > 0 ? (
+          <section className="folders" aria-label="Папки">
+            {deckFolders.map(({ folder, texts: items }) => (
+              <FolderDeck
+                key={folder.id}
+                folder={folder}
+                texts={items}
+                onOpen={openText}
+                onRename={() => setFolderDialog({ mode: 'rename', folder })}
+                onDelete={() => deleteFolder(folder.id)}
+                onRemoveText={(textId) => assignText(textId, null)}
+              />
+            ))}
+          </section>
         ) : null}
 
         <div
@@ -258,9 +426,57 @@ export function HomePage() {
               gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined,
             } as CSSProperties
           }
+          onDragOver={(event) => {
+            if (!dragId) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(event) => {
+            // Дроп мимо карточек — пустое место в конце: карточка уходит в конец.
+            if (!dragId) return;
+            event.preventDefault();
+            moveToEnd(dragId);
+            setDragId(null);
+            setOverId(null);
+          }}
         >
           {visible.map((text) => (
-            <article className={`card${menuId === text.id ? ' card--menu-open' : ''}`} key={text.id}>
+            <article
+              className={[
+                'card',
+                menuId === text.id ? 'card--menu-open' : '',
+                settings.sort === 'custom' ? 'card--draggable' : '',
+                dragId === text.id ? 'card--dragging' : '',
+                overId === text.id ? 'card--drop' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              key={text.id}
+              draggable={settings.sort === 'custom'}
+              onDragStart={(event) => {
+                setDragId(text.id);
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', text.id);
+              }}
+              onDragOver={(event) => {
+                if (!dragId || dragId === text.id) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                setOverId(text.id);
+              }}
+              onDragLeave={() => setOverId((current) => (current === text.id ? null : current))}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (dragId) reorder(dragId, text.id);
+                setDragId(null);
+                setOverId(null);
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+              }}
+            >
               <CardCover text={text} onOpen={setLightbox} />
 
               <button type="button" className="card__main" onClick={() => openText(text.id)}>
@@ -287,52 +503,106 @@ export function HomePage() {
                   type="button"
                   className="icon-btn"
                   aria-label="Действия с текстом"
-                  onClick={() => setMenuId(menuId === text.id ? null : text.id)}
+                  onClick={() => {
+                    if (menuId === text.id) {
+                      closeMenu();
+                      return;
+                    }
+                    setMenuId(text.id);
+                    setMenuStep('main');
+                  }}
                 >
                   ⋯
                 </button>
                 {menuId === text.id ? (
-                  <div className="menu">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuId(null);
-                        setRenaming(text);
-                      }}
-                    >
-                      Переименовать
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuId(null);
-                        pickCover(text);
-                      }}
-                    >
-                      {text.cover ? 'Заменить обложку' : 'Добавить обложку'}
-                    </button>
-                    {text.cover ? (
+                  menuStep === 'folders' ? (
+                    <div className="menu">
+                      <button type="button" onClick={() => setMenuStep('main')}>
+                        ← Назад
+                      </button>
+                      {(folders ?? []).length === 0 ? (
+                        <span className="menu__note">Папок ещё нет</span>
+                      ) : (
+                        (folders ?? []).map((folder) => (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => {
+                              assignText(text.id, folder.id);
+                              closeMenu();
+                            }}
+                          >
+                            {folder.name}
+                          </button>
+                        ))
+                      )}
                       <button
                         type="button"
                         onClick={() => {
-                          setMenuId(null);
-                          void removeCover(text);
+                          closeMenu();
+                          setFolderDialog({ mode: 'create', textId: text.id });
                         }}
                       >
-                        Убрать обложку
+                        ＋ Новая папка…
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="menu__danger"
-                      onClick={() => {
-                        setMenuId(null);
-                        setDeleting(text);
-                      }}
-                    >
-                      Удалить
-                    </button>
-                  </div>
+                      {folderOf(text.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            assignText(text.id, null);
+                            closeMenu();
+                          }}
+                        >
+                          Убрать из папки
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="menu">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMenu();
+                          setRenaming(text);
+                        }}
+                      >
+                        Переименовать
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMenu();
+                          pickCover(text);
+                        }}
+                      >
+                        {text.cover ? 'Заменить обложку' : 'Добавить обложку'}
+                      </button>
+                      {text.cover ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMenu();
+                            void removeCover(text);
+                          }}
+                        >
+                          Убрать обложку
+                        </button>
+                      ) : null}
+                      <button type="button" onClick={() => setMenuStep('folders')}>
+                        В папку…
+                      </button>
+                      <button
+                        type="button"
+                        className="menu__danger"
+                        onClick={() => {
+                          closeMenu();
+                          setDeleting(text);
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  )
                 ) : null}
               </div>
             </article>
@@ -386,6 +656,19 @@ export function HomePage() {
         }}
       />
 
+      {folderDialog ? (
+        <FolderNameDialog
+          title={folderDialog.mode === 'create' ? 'Новая папка' : 'Переименовать папку'}
+          initial={folderDialog.mode === 'rename' ? folderDialog.folder.name : ''}
+          onClose={() => setFolderDialog(null)}
+          onSubmit={(name) => {
+            if (folderDialog.mode === 'create') createFolder(name, folderDialog.textId);
+            else renameFolder(folderDialog.folder.id, name);
+            setFolderDialog(null);
+          }}
+        />
+      ) : null}
+
       {lightbox ? (
         <div className="lightbox" onClick={() => setLightbox(null)} role="dialog" aria-modal="true" aria-label="Обложка">
           <img src={lightbox} alt="" />
@@ -427,6 +710,54 @@ interface RenameDialogProps {
   text: TextMeta;
   onClose: () => void;
   onDone: () => void;
+}
+
+interface FolderNameDialogProps {
+  title: string;
+  initial: string;
+  onClose: () => void;
+  onSubmit: (name: string) => void;
+}
+
+/** Один диалог и на создание папки, и на переименование. */
+function FolderNameDialog({ title, initial, onClose, onSubmit }: FolderNameDialogProps) {
+  const [name, setName] = useState(initial);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const clean = name.trim();
+    if (!clean) return;
+    onSubmit(clean);
+  };
+
+  return (
+    <Dialog
+      title={title}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Отмена
+          </button>
+          <button type="submit" form="folder-form" className="btn btn--primary">
+            Сохранить
+          </button>
+        </>
+      }
+    >
+      <form id="folder-form" className="form" onSubmit={submit}>
+        <label className="field">
+          <span>Название папки</span>
+          <input
+            autoFocus
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Например: Рассказы"
+          />
+        </label>
+      </form>
+    </Dialog>
+  );
 }
 
 function RenameDialog({ text, onClose, onDone }: RenameDialogProps) {

@@ -47,6 +47,14 @@ export interface Bookmark {
   createdAt: string;
 }
 
+/** Папка на главной: подпись и список текстов по порядку. */
+export interface Folder {
+  id: string;
+  name: string;
+  textIds: string[];
+  order: number;
+}
+
 export interface ReadingState {
   page: number;
   pages: number;
@@ -122,6 +130,16 @@ export const api = {
       headers: jsonHeaders,
       body: JSON.stringify({ favorite }),
     }),
+
+  listFolders: () => request<{ folders: Folder[] }>('/api/folders').then((data) => data.folders),
+
+  /** Папки сохраняются списком целиком — сервер нормализует и возвращает его же. */
+  saveFolders: (folders: Folder[]) =>
+    request<{ folders: Folder[] }>('/api/folders', {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ folders }),
+    }).then((data) => data.folders),
 
   lookup: (word: string, lang: string, signal?: AbortSignal) =>
     request<LookupResult>(

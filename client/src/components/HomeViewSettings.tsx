@@ -8,7 +8,7 @@ import {
 } from '../lib/settings';
 
 /** Панель «Вид» на главной: сколько плиток в ряд и какого они размера. */
-export function HomeViewSettings({ effectiveColumns }: { effectiveColumns: number }) {
+export function HomeViewSettings() {
   const { settings, update } = useSettings();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -65,11 +65,6 @@ export function HomeViewSettings({ effectiveColumns }: { effectiveColumns: numbe
                 </button>
               ))}
             </div>
-            {settings.tilesPerRow > 0 && effectiveColumns > 0 && effectiveColumns < settings.tilesPerRow ? (
-              <span className="settings__hint">
-                Окно узкое: показываю {effectiveColumns} в ряд
-              </span>
-            ) : null}
           </div>
 
           <div className="settings__row">

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type Theme = 'dark' | 'light';
+export type SortMode = 'date' | 'title' | 'custom';
 
 export interface Settings {
   theme: Theme;
@@ -10,6 +11,10 @@ export interface Settings {
   tilesPerRow: number;
   /** Размер плиток на главной: 1 — обычный, 0.7 — мелкие, 1.5 — крупные. */
   tilesScale: number;
+  /** Как отсортированы тексты на главной. */
+  sort: SortMode;
+  /** Порядок текстов для сортировки «Свои»: сначала идут новые, дальше — как подвинул. */
+  textsOrder: string[];
 }
 
 /** Допустимые скорости озвучки. */
@@ -19,11 +24,17 @@ export const MIN_FONT_SIZE = 10;
 export const MAX_FONT_SIZE = 32;
 
 /** Варианты «сколько плиток в ряд»; 0 — авто. */
-export const TILES_PER_ROW = [0, 2, 3, 4, 5, 6] as const;
+export const TILES_PER_ROW = [0, 2, 3, 4, 5] as const;
 
 export const MIN_TILES_SCALE = 0.7;
 export const MAX_TILES_SCALE = 1.5;
 export const TILES_SCALE_STEP = 0.1;
+
+export const SORT_MODES: ReadonlyArray<{ value: SortMode; label: string }> = [
+  { value: 'date', label: 'Сначала новые' },
+  { value: 'title', label: 'А–Я' },
+  { value: 'custom', label: 'Свои' },
+];
 
 export const DEFAULTS: Settings = {
   theme: 'dark',
@@ -31,6 +42,8 @@ export const DEFAULTS: Settings = {
   rate: 0.75,
   tilesPerRow: 0,
   tilesScale: 1,
+  sort: 'date',
+  textsOrder: [],
 };
 
 const STORAGE_KEY = 'project-sus:settings';
@@ -72,6 +85,15 @@ function normalizeTilesPerRow(value: unknown): number {
   return TILES_PER_ROW.includes(variant) ? variant : DEFAULTS.tilesPerRow;
 }
 
+function normalizeSort(value: unknown): SortMode {
+  return SORT_MODES.some((mode) => mode.value === value) ? (value as SortMode) : DEFAULTS.sort;
+}
+
+function normalizeOrder(value: unknown): string[] {
+  if (!Array.isArray(value)) return DEFAULTS.textsOrder;
+  return value.filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
 function readSettings(): Settings {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -86,6 +108,8 @@ function readSettings(): Settings {
       rate: nearestSpeed(typeof parsed.rate === 'number' ? parsed.rate : DEFAULTS.rate),
       tilesPerRow: normalizeTilesPerRow(parsed.tilesPerRow),
       tilesScale: clampTilesScale(parsed.tilesScale),
+      sort: normalizeSort(parsed.sort),
+      textsOrder: normalizeOrder(parsed.textsOrder),
     };
   } catch {
     return DEFAULTS;

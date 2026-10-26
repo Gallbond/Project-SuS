@@ -51,6 +51,12 @@ export class JsonStore<V> {
     return true;
   }
 
+  /** Заменяет всё содержимое разом — папки сохраняются целиком, одним списком. */
+  replaceAll(values: Record<string, V>): void {
+    this.data = values;
+    this.flush();
+  }
+
   private flush(): void {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     const tmp = `${this.filePath}.tmp`;

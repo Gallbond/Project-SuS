@@ -6,6 +6,7 @@ import { backupData } from './backup';
 import { CLIENT_DIST } from './paths';
 import { lookupRouter } from './routes/lookup';
 import { dictionaryRouter } from './routes/dictionary';
+import { foldersRouter } from './routes/folders';
 import { readingRouter } from './routes/reading';
 import { textsRouter } from './routes/texts';
 import { ensureTextsDir } from './storage';
@@ -22,6 +23,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/texts', textsRouter);
 app.use('/api/lookup', lookupRouter);
 app.use('/api/dictionary', dictionaryRouter);
+app.use('/api/folders', foldersRouter);
 app.use('/api/reading', readingRouter);
 
 app.use('/api', (_req, res) => {

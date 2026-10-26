@@ -293,6 +293,12 @@ code {
   color: var(--muted);
 }
 
+.toolbar__hint {
+  margin-left: 11px;
+  font-size: 12.1px;
+  opacity: 0.8;
+}
+
 .toolbar__right {
   display: flex;
   align-items: center;
@@ -353,7 +359,8 @@ code {
   z-index: 1;
   display: flex;
   gap: calc(15.4px * var(--tile-scale));
-  min-height: calc(209px * var(--tile-scale));
+  /* Высота одинаковая у всех карточек: ряды не «пляшут». */
+  height: calc(240px * var(--tile-text));
   padding: calc(17.6px * var(--tile-scale));
   border: 1.1px solid var(--border);
   border-radius: var(--radius);
@@ -455,10 +462,28 @@ code {
   transform: none;
 }
 
+.card--draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.card--dragging {
+  opacity: 0.35;
+}
+
+.card--drop {
+  border-color: var(--accent);
+  outline: 2.2px solid var(--accent-soft);
+  outline-offset: 2.2px;
+}
+
 .card__main {
-  display: block;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
   border: 0;
   border-radius: var(--radius);
@@ -473,6 +498,8 @@ code {
 }
 
 .badge {
+  flex: none;
+  align-self: flex-start;
   display: inline-block;
   padding: 3.3px 7.7px;
   border-radius: 6.6px;
@@ -484,10 +511,15 @@ code {
 }
 
 .card__title {
+  flex: none;
+  display: -webkit-box;
   margin: calc(11px * var(--tile-text)) 0 calc(6.6px * var(--tile-text));
+  overflow: hidden;
   font-size: calc(18.7px * var(--tile-text));
   font-weight: 600;
   line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .card__excerpt {
@@ -502,6 +534,7 @@ code {
 }
 
 .card__meta {
+  margin-top: auto;
   font-size: calc(13.2px * var(--tile-text));
   color: var(--muted);
 }
@@ -527,6 +560,179 @@ code {
   color: var(--accent);
 }
 
+/* ---------- папки: колода карт веером ---------- */
+
+.folders {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 22px;
+  margin-bottom: 30.8px;
+}
+
+.folder {
+  position: relative;
+  width: 220px;
+}
+
+.folder__deck {
+  position: relative;
+  height: 176px;
+}
+
+.folder__card {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: calc(var(--i) + 1);
+  display: grid;
+  place-items: center;
+  width: 154px;
+  height: 110px;
+  margin-left: -77px;
+  padding: 0;
+  overflow: hidden;
+  border: 1.1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: 0 6.6px 17.6px rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  cursor: pointer;
+  transform-origin: 50% 130%;
+  transform: rotate(calc((var(--i) - 2) * 9deg));
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    border-color 200ms ease;
+}
+
+.folder__card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.folder__card-name {
+  display: -webkit-box;
+  padding: 9.9px;
+  overflow: hidden;
+  font-size: 12.1px;
+  line-height: 1.4;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* Наведение на папку: веер раскрывается, верхняя карта достаётся. */
+.folder:hover .folder__card {
+  transform: rotate(calc((var(--i) - 2) * 13deg));
+}
+
+.folder:hover .folder__card--top {
+  z-index: 40;
+  transform: translateY(-26px) rotate(0deg) scale(1.03);
+  box-shadow: 0 17.6px 35.2px rgba(0, 0, 0, 0.4);
+}
+
+/* Наведение на конкретную карту: она выходит из колоды. */
+.folder .folder__card:hover {
+  z-index: 60;
+  transform: translateY(-48px) rotate(0deg) scale(1.06);
+  border-color: var(--accent);
+  box-shadow: 0 24.2px 48.4px rgba(0, 0, 0, 0.45);
+}
+
+.folder__card-remove {
+  position: absolute;
+  top: 4.4px;
+  right: 4.4px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 14.3px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.folder__card:hover .folder__card-remove,
+.folder__card-remove:focus-visible {
+  opacity: 1;
+}
+
+.folder__empty {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 154px;
+  height: 110px;
+  margin-left: -77px;
+  border: 1.1px dashed var(--border-strong);
+  border-radius: 11px;
+  color: var(--muted);
+  font-size: 12.1px;
+}
+
+.folder__more {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 80;
+  padding: 1.1px 6.6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.folder__foot {
+  display: flex;
+  align-items: center;
+  gap: 8.8px;
+  margin-top: 8.8px;
+}
+
+.folder__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6.6px;
+  min-width: 0;
+}
+
+.folder__name {
+  overflow: hidden;
+  font-size: 14.3px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder__count {
+  color: var(--muted);
+  font-size: 12.1px;
+}
+
+.folder__menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.menu__note {
+  padding: 6.6px 11px;
+  color: var(--muted);
+  font-size: 13.2px;
+}
+
 .menu {
   position: absolute;
   top: 41.8px;
@@ -534,8 +740,10 @@ code {
   z-index: 40;
   display: flex;
   flex-direction: column;
+  max-height: 60vh;
   min-width: 176px;
   padding: 5.5px;
+  overflow-y: auto;
   border: 1.1px solid var(--border-strong);
   border-radius: 11px;
   background: var(--surface-2);
@@ -687,12 +895,6 @@ code {
   flex-direction: column;
   align-items: stretch;
   gap: 6.6px;
-}
-
-.settings__hint {
-  color: var(--muted);
-  font-size: 12.1px;
-  line-height: 1.4;
 }
 
 .stepper {
