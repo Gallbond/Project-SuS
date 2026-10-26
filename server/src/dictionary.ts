@@ -100,3 +100,17 @@ export function updateSavedTranslation(word: string, lang: string, translation: 
   if (!existing) return;
   store.set(key, { ...existing, translation: translation.trim() });
 }
+
+/** Текст переименовали — обновляем у сохранённых слов ссылку «откуда слово». */
+export function updateTextReference(textId: string, nextId: string, nextTitle: string): void {
+  const data = store.all();
+  let changed = false;
+
+  for (const [key, entry] of Object.entries(data)) {
+    if (entry.textId !== textId) continue;
+    data[key] = { ...entry, textId: nextId, textTitle: nextTitle };
+    changed = true;
+  }
+
+  if (changed) store.replaceAll(data);
+}

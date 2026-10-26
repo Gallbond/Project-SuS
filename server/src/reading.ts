@@ -30,17 +30,29 @@ export function getReading(textId: string): ReadingState {
   const stored = store.get(textId);
   if (!stored) return emptyReading();
 
-  const bookmarks = Array.isArray(stored.bookmarks)
+  const raw = Array.isArray(stored.bookmarks)
     ? stored.bookmarks
     : stored.bookmark
       ? [stored.bookmark]
       : [];
+  // Битая запись в JSON не должна ронять читалку.
+  const bookmarks = raw.filter(
+    (item): item is Bookmark => Boolean(item) && typeof item.page === 'number',
+  );
 
   return { ...emptyReading(), ...stored, bookmarks };
 }
 
 export function removeReading(textId: string): void {
   store.delete(textId);
+}
+
+/** Переносит прогресс на новый id — при переименовании текста. */
+export function moveReading(fromId: string, toId: string): void {
+  const stored = store.get(fromId);
+  if (!stored) return;
+  store.delete(fromId);
+  store.set(toId, stored);
 }
 
 function clamp(value: number, min: number, max: number): number {

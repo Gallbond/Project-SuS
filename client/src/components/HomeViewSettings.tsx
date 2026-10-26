@@ -8,10 +8,14 @@ import {
 } from '../lib/settings';
 
 /** Панель «Вид» на главной: сколько плиток в ряд и какого они размера. */
-export function HomeViewSettings() {
+export function HomeViewSettings({ effectiveColumns }: { effectiveColumns: number }) {
   const { settings, update } = useSettings();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // В панели подсвечиваем то, что реально на экране: если выбранное число
+  // не влезает, колонок меньше, но настройка при этом не перезаписывается.
+  const activeCount = effectiveColumns > 0 ? effectiveColumns : settings.tilesPerRow;
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +61,7 @@ export function HomeViewSettings() {
                 <button
                   key={count}
                   type="button"
-                  className={settings.tilesPerRow === count ? 'is-active' : ''}
+                  className={activeCount === count ? 'is-active' : ''}
                   onClick={() => update({ tilesPerRow: count })}
                   title={count === 0 ? 'Столько, сколько влезет по ширине окна' : `${count} в ряд`}
                 >

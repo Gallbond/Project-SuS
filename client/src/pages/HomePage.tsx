@@ -84,8 +84,8 @@ export function HomePage() {
     setMenuStep('main');
   };
 
-  // Выбранное «плиток в ряд» — верхняя граница: если окно уже, колонок станет
-  // меньше, и панель «Вид» сама переключится на меньшее число.
+  // Сколько плиток реально влезает. Настройку НЕ перезаписываем: иначе
+  // при уменьшении окна или масштабе браузера выбор «залипал» на 1.
   useEffect(() => {
     if (!settings.tilesPerRow) {
       setColumns(0);
@@ -96,14 +96,14 @@ export function HomePage() {
     if (!element) return;
 
     const recalc = () => {
+      const width = element.clientWidth;
+      // Пока разметка не разложилась, ширина нулевая — не считаем.
+      if (width <= 0) return;
       const gap = Number.parseFloat(getComputedStyle(element).columnGap) || 0;
       // Обложка + отступы + минимум места под текст.
       const minCard = 182 * settings.tilesScale + 100;
-      const fit = Math.max(1, Math.floor((element.clientWidth + gap) / (minCard + gap)));
-      const effective = Math.min(settings.tilesPerRow, fit);
-      setColumns(effective);
-      // Не влезло — запоминаем меньшее число, чтобы панель показывала правду.
-      if (effective < settings.tilesPerRow) update({ tilesPerRow: effective });
+      const fit = Math.max(1, Math.floor((width + gap) / (minCard + gap)));
+      setColumns(Math.min(settings.tilesPerRow, fit));
     };
 
     recalc();
@@ -256,6 +256,10 @@ export function HomePage() {
   };
 
   const tryDropToFolder = (folder: Folder, textId: string) => {
+    // Берём только реальные тексты: иначе перетаскивание выделенного текста
+    // (или строки из другого окна) добавляло в папку фантомный id.
+    if (!(texts ?? []).some((text) => text.id === textId)) return;
+
     const already = folder.textIds.includes(textId);
     if (!already && isFolderFull(folder)) {
       rejectDrop(folder.id, textId);
@@ -284,6 +288,9 @@ export function HomePage() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [easterEgg]);
+
+  // Таймер анимации отказа не должен срабатывать после ухода со страницы.
+  useEffect(() => () => window.clearTimeout(rejectTimer.current), []);
 
   const createFolder = (name: string, textId?: string) => {
     const base = textId ? withoutText(folders ?? [], textId) : (folders ?? []);
@@ -409,7 +416,7 @@ export function HomePage() {
             >
               + Папка
             </button>
-            <HomeViewSettings />
+            <HomeViewSettings effectiveColumns={columns} />
           </div>
         </div>
 

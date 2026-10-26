@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { updateTextReference } from '../dictionary';
 import { ApiError } from '../errors';
-import { removeReading } from '../reading';
+import { forgetText, replaceTextId } from '../folders';
+import { moveReading, removeReading } from '../reading';
 import { createText, deleteCover, deleteText, getText, listTexts, readCover, renameText, setCover, setFavorite } from '../storage';
 
 export const textsRouter = Router();
@@ -35,12 +37,24 @@ textsRouter.post('/', async (req, res) => {
 textsRouter.patch('/:id', async (req, res) => {
   const { title } = (req.body ?? {}) as { title?: unknown };
   if (typeof title !== 'string') throw new ApiError(400, 'Не передано новое название', 'NO_TITLE');
-  res.json(await renameText(req.params.id, title));
+
+  const id = req.params.id;
+  const doc = await renameText(id, title);
+
+  // Переименование меняет id: переносим прогресс, папки и ссылки в словаре.
+  if (doc.id !== id) {
+    moveReading(id, doc.id);
+    replaceTextId(id, doc.id);
+    updateTextReference(id, doc.id, doc.title);
+  }
+
+  res.json(doc);
 });
 
 textsRouter.delete('/:id', async (req, res) => {
   await deleteText(req.params.id);
   removeReading(req.params.id);
+  forgetText(req.params.id);
   res.json({ ok: true });
 });
 

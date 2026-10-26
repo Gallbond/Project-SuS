@@ -14,7 +14,8 @@ import { ensureTextsDir } from './storage';
 const app = express();
 const port = Number(process.env.PORT ?? 3001);
 
-app.use(express.json({ limit: '2mb' }));
+// Запас под обложку: data URL до 3 МБ даёт тело около 4 МБ.
+app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, texts: true });

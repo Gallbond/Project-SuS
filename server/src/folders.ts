@@ -17,6 +17,33 @@ export function listFolders(): Folder[] {
   return Object.values(store.all()).sort((a, b) => a.order - b.order);
 }
 
+/** Применяет правку ко всем папкам и пишет файл, только если что-то изменилось. */
+function updateFolders(map: (folder: Folder) => Folder): void {
+  const current = Object.values(store.all());
+  const next = current.map(map);
+  if (next.every((folder, index) => folder === current[index])) return;
+
+  store.replaceAll(Object.fromEntries(next.map((folder) => [folder.id, folder])));
+}
+
+/** Текст переименовали (сменился id) — обновляем ссылки во всех папках. */
+export function replaceTextId(fromId: string, toId: string): void {
+  updateFolders((folder) =>
+    folder.textIds.includes(fromId)
+      ? { ...folder, textIds: folder.textIds.map((id) => (id === fromId ? toId : id)) }
+      : folder,
+  );
+}
+
+/** Текст удалили — убираем его из папок, чтобы он не занимал слот. */
+export function forgetText(textId: string): void {
+  updateFolders((folder) =>
+    folder.textIds.includes(textId)
+      ? { ...folder, textIds: folder.textIds.filter((id) => id !== textId) }
+      : folder,
+  );
+}
+
 /**
  * Папки сохраняются целиком: их немного, а порядок и состав меняются вместе.
  * Поэтому один PUT присылает весь список, сервер его нормализует и записывает.
