@@ -61,6 +61,8 @@ export function HomePage() {
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
   const [coverTarget, setCoverTarget] = useState<TextMeta | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  /** Пасхалка: картинка на весь экран, закрывается только крестиком. */
+  const [easterEgg, setEasterEgg] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   /** Текст, который тащат из папки обратно в список. */
@@ -270,8 +272,18 @@ export function HomePage() {
     logoClicks.current += 1;
     if (logoClicks.current < 67) return;
     logoClicks.current = 0;
-    setLightbox('/totya.png');
+    setEasterEgg(true);
   };
+
+  // Пасхалка закрывается крестиком; Esc — на всякий случай, для клавиатуры.
+  useEffect(() => {
+    if (!easterEgg) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEasterEgg(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [easterEgg]);
 
   const createFolder = (name: string, textId?: string) => {
     const base = textId ? withoutText(folders ?? [], textId) : (folders ?? []);
@@ -717,6 +729,21 @@ export function HomePage() {
       {lightbox ? (
         <div className="lightbox" onClick={() => setLightbox(null)} role="dialog" aria-modal="true" aria-label="Обложка">
           <img src={lightbox} alt="" />
+        </div>
+      ) : null}
+
+      {easterEgg ? (
+        <div className="lightbox lightbox--egg" role="dialog" aria-modal="true" aria-label="Пасхалка">
+          <img src="/totya.png" alt="" />
+          <button
+            type="button"
+            className="lightbox__close"
+            onClick={() => setEasterEgg(false)}
+            aria-label="Закрыть"
+            title="Закрыть"
+          >
+            ✕
+          </button>
         </div>
       ) : null}
     </div>

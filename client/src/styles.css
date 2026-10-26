@@ -370,7 +370,7 @@ code {
   display: flex;
   gap: calc(15.4px * var(--tile-scale));
   /* Высота одинаковая у всех карточек: ряды не «пляшут». */
-  height: calc(252px * var(--tile-text));
+  height: calc(258px * var(--tile-text));
   padding: calc(17.6px * var(--tile-scale));
   border: 1.1px solid var(--border);
   border-radius: var(--radius);
@@ -383,13 +383,13 @@ code {
   flex: none;
 }
 
-/* Обложка всегда книжная: 2:3 от высоты карточки (252 × --tile-text минус отступы). */
+/* Обложка всегда книжная: 2:3 от высоты карточки (258 × --tile-text минус отступы). */
 .card__cover {
   display: grid;
   place-items: center;
   flex: none;
   align-self: stretch;
-  width: calc((252px * var(--tile-text) - 35.2px * var(--tile-scale)) * 2 / 3);
+  width: calc((258px * var(--tile-text) - 35.2px * var(--tile-scale)) * 2 / 3);
   padding: 0;
   overflow: hidden;
   border: 1.1px solid var(--border);
@@ -450,6 +450,40 @@ code {
   max-height: 84vh;
   border-radius: 13.2px;
   box-shadow: 0 33px 88px rgba(0, 0, 0, 0.55);
+}
+
+/* Пасхалка: закрывается только крестиком, фон не реагирует на клик. */
+.lightbox--egg {
+  cursor: default;
+}
+
+.lightbox__close {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1.1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 19.8px;
+  line-height: 1;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.lightbox__close:hover {
+  background: var(--surface-3);
+}
+
+.lightbox__close:focus-visible {
+  outline: 2.2px solid var(--accent);
+  outline-offset: 2.2px;
 }
 
 @keyframes lightbox-in {
@@ -524,10 +558,11 @@ code {
   flex: none;
   display: -webkit-box;
   margin: calc(11px * var(--tile-text)) 0 calc(6.6px * var(--tile-text));
-  /* Две строки — и по clamp, и по max-height: если clamp не сработает,
-     высота всё равно не даст тексту вылезти за карточку. */
-  max-height: calc(2.6em);
+  /* Две строки — и по clamp, и по max-height. Небольшой запас (+4px) нужен,
+     чтобы выносные элементы последней строки не срезались overflow: hidden. */
+  max-height: calc(2.6em + 4px);
   overflow: hidden;
+  overflow-wrap: anywhere;
   font-size: calc(18.7px * var(--tile-text));
   font-weight: 600;
   line-height: 1.3;
@@ -538,8 +573,10 @@ code {
 .card__excerpt {
   display: -webkit-box;
   margin: 0 0 calc(15.4px * var(--tile-text));
-  max-height: calc(4.5em);
+  max-height: calc(4.5em + 6px);
+  padding-bottom: 2px;
   overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: calc(14.85px * var(--tile-text));
   line-height: 1.5;
