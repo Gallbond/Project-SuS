@@ -532,10 +532,11 @@ code {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  /* Без border-radius: скруглённая маска overflow:hidden срезала углы текста
+     (например, первую цифру в «67 слов»). */
   overflow: hidden;
   padding: 0;
   border: 0;
-  border-radius: var(--radius);
   background: none;
   color: inherit;
   text-align: left;
