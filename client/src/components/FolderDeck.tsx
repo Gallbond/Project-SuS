@@ -98,9 +98,12 @@ export function FolderDeck({
       <div
         className={`folder__deck${over ? ' folder__deck--over' : ''}${count ? '' : ' folder__deck--empty'}`}
         onMouseMove={(event) => {
-          // Наведение на крестик не должно переключать карты: иначе кнопка
-          // «убегает» вместе с соседней картой.
-          if ((event.target as HTMLElement).closest('.folder__card-remove')) return;
+          const target = event.target as HTMLElement;
+          // Пока курсор над активной картой, ничего не переключаем — иначе
+          // до крестика в углу не дотянуться: карта «убегает» под курсором.
+          if (target.closest('.folder__card--active')) return;
+          // И уж точно не переключаем, когда курсор на самом крестике.
+          if (target.closest('.folder__card-remove')) return;
           pickActive(event.currentTarget, event.clientX);
         }}
         onMouseLeave={() => setActive(null)}
@@ -118,6 +121,9 @@ export function FolderDeck({
                   '--shift': index - middle,
                   '--spread-x': `${stepX}cqw`,
                   '--spread-a': `${stepA}deg`,
+                  // Обложка — фон карточки, а не <img>: так название всегда сверху,
+                  // а вытянутые фото корректно обрезаются по формату 2:3.
+                  backgroundImage: text.cover ? `url("${text.cover}")` : undefined,
                 } as CSSProperties
               }
               role="button"
@@ -131,7 +137,6 @@ export function FolderDeck({
                 }
               }}
             >
-              {text.cover ? <img src={text.cover} alt="" loading="lazy" /> : null}
               <span className="folder__card-title">
                 <span className="folder__card-title-text">{text.title}</span>
               </span>
