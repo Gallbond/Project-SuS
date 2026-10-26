@@ -572,7 +572,7 @@ code {
 
 .folder {
   position: relative;
-  width: 220px;
+  width: 260px;
 }
 
 .folder__deck {
@@ -580,6 +580,7 @@ code {
   height: 176px;
 }
 
+/* Карты лежат веером: сдвиг и наклон каждой задаёт компонент через --shift. */
 .folder__card {
   position: absolute;
   left: 50%;
@@ -587,9 +588,9 @@ code {
   z-index: calc(var(--i) + 1);
   display: grid;
   place-items: center;
-  width: 154px;
-  height: 110px;
-  margin-left: -77px;
+  width: 150px;
+  height: 104px;
+  margin-left: -75px;
   padding: 0;
   overflow: hidden;
   border: 1.1px solid var(--border-strong);
@@ -598,12 +599,12 @@ code {
   box-shadow: 0 6.6px 17.6px rgba(0, 0, 0, 0.28);
   color: var(--text);
   cursor: pointer;
-  transform-origin: 50% 130%;
-  transform: rotate(calc((var(--i) - 2) * 9deg));
+  transform: translateX(calc(var(--shift) * var(--spread-x)))
+    rotate(calc(var(--shift) * var(--spread-a)));
   transition:
-    transform 200ms ease,
-    box-shadow 200ms ease,
-    border-color 200ms ease;
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
 }
 
 .folder__card img {
@@ -624,23 +625,30 @@ code {
   -webkit-line-clamp: 3;
 }
 
-/* Наведение на папку: веер раскрывается, верхняя карта достаётся. */
+/* Веер раскрывается, когда курсор над папкой. */
 .folder:hover .folder__card {
-  transform: rotate(calc((var(--i) - 2) * 13deg));
+  transform: translateX(calc(var(--shift) * var(--spread-x) * 1.25))
+    rotate(calc(var(--shift) * var(--spread-a) * 1.25));
 }
 
-.folder:hover .folder__card--top {
-  z-index: 40;
-  transform: translateY(-26px) rotate(0deg) scale(1.03);
-  box-shadow: 0 17.6px 35.2px rgba(0, 0, 0, 0.4);
-}
-
-/* Наведение на конкретную карту: она выходит из колоды. */
-.folder .folder__card:hover {
-  z-index: 60;
-  transform: translateY(-48px) rotate(0deg) scale(1.06);
+/* Карта под курсором достаётся из колоды; по горизонтали она переключается. */
+.folder .folder__card--active {
+  z-index: 100;
+  transform: translateX(calc(var(--shift) * var(--spread-x) * 1.25)) translateY(-54px)
+    rotate(0deg) scale(1.06);
   border-color: var(--accent);
   box-shadow: 0 24.2px 48.4px rgba(0, 0, 0, 0.45);
+}
+
+/* Сюда можно бросить карточку текста. */
+.folder__deck--over::after {
+  content: '';
+  position: absolute;
+  inset: -4.4px;
+  border: 2.2px dashed var(--accent);
+  border-radius: 13.2px;
+  background: var(--accent-soft);
+  pointer-events: none;
 }
 
 .folder__card-remove {
@@ -674,9 +682,9 @@ code {
   bottom: 0;
   display: grid;
   place-items: center;
-  width: 154px;
-  height: 110px;
-  margin-left: -77px;
+  width: 150px;
+  height: 104px;
+  margin-left: -75px;
   border: 1.1px dashed var(--border-strong);
   border-radius: 11px;
   color: var(--muted);

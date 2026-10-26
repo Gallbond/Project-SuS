@@ -11,14 +11,27 @@ interface FolderDeckProps {
   onRename: () => void;
   onDelete: () => void;
   onRemoveText: (textId: string) => void;
+  /** Бросок карточки текста на папку. */
+  onDropText: (textId: string) => void;
 }
 
 /**
- * Папка как колода карт: тексты лежат веером, при наведении на папку верхняя
- * карта «достаётся», при наведении на любую карту — поднимается она.
+ * Папка как колода карт веером. Курсор движется по горизонтали — активной
+ * становится карта под курсором, она и «достаётся» из колоды. Ушёл курсор —
+ * всё возвращается на место.
  */
-export function FolderDeck({ folder, texts, onOpen, onRename, onDelete, onRemoveText }: FolderDeckProps) {
+export function FolderDeck({
+  folder,
+  texts,
+  onOpen,
+  onRename,
+  onDelete,
+  onRemoveText,
+  onDropText,
+}: FolderDeckProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [active, setActive] = useState<number | null>(null);
+  const [over, setOver] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -33,18 +46,60 @@ export function FolderDeck({ folder, texts, onOpen, onRename, onDelete, onRemove
 
   const cards = texts.slice(0, MAX_CARDS);
   const hidden = texts.length - cards.length;
+  const count = cards.length;
+  const middle = (count - 1) / 2;
+
+  // Колода компактная: карты лежат стопкой с небольшим сдвигом,
+  // чтобы читались края, а не разъехавшийся веер.
+  const stepX = count <= 2 ? 34 : count === 3 ? 24 : 16;
+  const stepA = count <= 2 ? 8 : count === 3 ? 5 : 3.5;
 
   return (
-    <article className="folder" ref={rootRef}>
-      <div className={`folder__deck${cards.length ? '' : ' folder__deck--empty'}`}>
-        {cards.length === 0 ? (
+    <article
+      className={`folder${over ? ' folder--over' : ''}`}
+      ref={rootRef}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('text/plain')) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setOver(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setOver(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setOver(false);
+        const textId = event.dataTransfer.getData('text/plain');
+        if (textId) onDropText(textId);
+      }}
+    >
+      <div
+        className={`folder__deck${over ? ' folder__deck--over' : ''}${count ? '' : ' folder__deck--empty'}`}
+        onMouseMove={(event) => {
+          if (!count) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const ratio = (event.clientX - rect.left) / rect.width;
+          setActive(Math.min(count - 1, Math.max(0, Math.floor(ratio * count))));
+        }}
+        onMouseLeave={() => setActive(null)}
+      >
+        {count === 0 ? (
           <div className="folder__empty">Пусто</div>
         ) : (
           cards.map((text, index) => (
             <div
               key={text.id}
-              className={`folder__card${index === cards.length - 1 ? ' folder__card--top' : ''}`}
-              style={{ '--i': index } as CSSProperties}
+              className={`folder__card${index === active ? ' folder__card--active' : ''}`}
+              style={
+                {
+                  '--i': index,
+                  '--shift': index - middle,
+                  '--spread-x': `${stepX}px`,
+                  '--spread-a': `${stepA}deg`,
+                } as CSSProperties
+              }
               role="button"
               tabIndex={0}
               title={text.title}

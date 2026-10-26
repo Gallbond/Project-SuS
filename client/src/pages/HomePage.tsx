@@ -252,26 +252,14 @@ export function HomePage() {
     persistFolders((folders ?? []).filter((folder) => folder.id !== id));
   };
 
-  /** Переставляет карточку на место целевой: остальные сдвигаются сами. */
-  const reorder = (dragged: string, target: string) => {
+  /** Меняет две карточки местами — остальные остаются на своих местах. */
+  const swap = (dragged: string, target: string) => {
     const from = orderedIds.indexOf(dragged);
     const to = orderedIds.indexOf(target);
     if (from < 0 || to < 0 || from === to) return;
 
     const next = [...orderedIds];
-    next.splice(from, 1);
-    next.splice(to, 0, dragged);
-    update({ textsOrder: next });
-  };
-
-  /** Дроп на пустое место: карточка уходит в конец списка. */
-  const moveToEnd = (dragged: string) => {
-    const from = orderedIds.indexOf(dragged);
-    if (from < 0 || from === orderedIds.length - 1) return;
-
-    const next = [...orderedIds];
-    next.splice(from, 1);
-    next.push(dragged);
+    [next[from], next[to]] = [next[to], next[from]];
     update({ textsOrder: next });
   };
 
@@ -341,7 +329,7 @@ export function HomePage() {
           <span className="toolbar__count">
             {texts === null ? 'Загружаю…' : `${visible.length} ${pluralTexts(visible.length)}`}
             {settings.sort === 'custom' && visible.length > 1 ? (
-              <span className="toolbar__hint">Перетащи карточку, чтобы поменять порядок</span>
+              <span className="toolbar__hint">Перетащи карточку на другую, чтобы поменять их местами</span>
             ) : null}
           </span>
           <div className="toolbar__right">
@@ -412,6 +400,11 @@ export function HomePage() {
                 onRename={() => setFolderDialog({ mode: 'rename', folder })}
                 onDelete={() => deleteFolder(folder.id)}
                 onRemoveText={(textId) => assignText(textId, null)}
+                onDropText={(textId) => {
+                  assignText(textId, folder.id);
+                  setDragId(null);
+                  setOverId(null);
+                }}
               />
             ))}
           </section>
@@ -426,49 +419,41 @@ export function HomePage() {
               gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined,
             } as CSSProperties
           }
-          onDragOver={(event) => {
-            if (!dragId) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-          }}
-          onDrop={(event) => {
-            // Дроп мимо карточек — пустое место в конце: карточка уходит в конец.
-            if (!dragId) return;
-            event.preventDefault();
-            moveToEnd(dragId);
-            setDragId(null);
-            setOverId(null);
-          }}
         >
           {visible.map((text) => (
             <article
               className={[
                 'card',
+                'card--draggable',
                 menuId === text.id ? 'card--menu-open' : '',
-                settings.sort === 'custom' ? 'card--draggable' : '',
                 dragId === text.id ? 'card--dragging' : '',
                 overId === text.id ? 'card--drop' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
               key={text.id}
-              draggable={settings.sort === 'custom'}
+              draggable
               onDragStart={(event) => {
                 setDragId(text.id);
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', text.id);
               }}
               onDragOver={(event) => {
-                if (!dragId || dragId === text.id) return;
+                // Меняться местами можно только в ручном порядке.
+                if (settings.sort !== 'custom' || !dragId || dragId === text.id) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'move';
                 setOverId(text.id);
               }}
-              onDragLeave={() => setOverId((current) => (current === text.id ? null : current))}
+              onDragLeave={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                setOverId((current) => (current === text.id ? null : current));
+              }}
               onDrop={(event) => {
+                if (settings.sort !== 'custom' || !dragId) return;
                 event.preventDefault();
                 event.stopPropagation();
-                if (dragId) reorder(dragId, text.id);
+                swap(dragId, text.id);
                 setDragId(null);
                 setOverId(null);
               }}
